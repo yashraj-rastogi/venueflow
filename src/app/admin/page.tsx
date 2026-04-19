@@ -2,34 +2,53 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Activity, Shield, Users, Bell, Settings, ArrowLeft, Send, CheckCircle, AlertTriangle, ToggleLeft, ToggleRight, Zap } from 'lucide-react';
-import { SAMPLE_VENUES } from '@/lib/sampleData';
-import { getDensityColor, formatPercent, formatCount } from '@/lib/utils';
+import { Activity, Shield, Users, Bell, Settings, ArrowLeft, Send, CheckCircle, AlertTriangle, Zap, Loader2 } from 'lucide-react';
+import { fmtCount, fmtPct, fmtDensityColor } from '@/lib/formatters';
 import { useAuth } from '@/hooks/useAuth';
-import { useCrowdData } from '@/hooks/useRealtimeData';
+import { useCrowdData, useVenueData } from '@/hooks/useRealtimeData';
+import { ensureVenueSeeded } from '@/lib/seedFirebase';
+
+const DEFAULT_VENUE_ID = 'metlife-stadium';
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, isAdmin, isGuest, loading } = useAuth();
-  const venue = SAMPLE_VENUES[0];
-  const { crowd } = useCrowdData(venue.id);
+  const { user, isGuest, loading } = useAuth();
+  const { venue, loading: venueLoading } = useVenueData(DEFAULT_VENUE_ID);
+  const { crowd } = useCrowdData(DEFAULT_VENUE_ID);
 
   const [notification, setNotification] = useState({ section: 'all', message: '', type: 'info' });
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [amenityStates, setAmenityStates] = useState<Record<string, boolean>>(
-    Object.fromEntries(venue.amenities.map(a => [a.id, a.isOpen]))
-  );
+  const [amenityStates, setAmenityStates] = useState<Record<string, boolean>>({});
 
+  // Seed RTDB on first load
   useEffect(() => {
-    // For MVP, if not signed in or is a guest, send them to home.
+    ensureVenueSeeded(DEFAULT_VENUE_ID);
+  }, []);
+
+  // Initialise amenity toggle state from live venue data
+  useEffect(() => {
+    if (venue?.amenities?.length) {
+      setAmenityStates(prev => {
+        if (Object.keys(prev).length > 0) return prev; // don't overwrite user changes
+        return Object.fromEntries(venue.amenities.map(a => [a.id, a.isOpen]));
+      });
+    }
+  }, [venue]);
+
+  // Auth guard — redirect to /login (not home) so user can sign in and return
+  useEffect(() => {
     if (!loading && (!user || isGuest)) {
-      router.push('/');
+      router.push('/login?redirect=/admin');
     }
   }, [user, isGuest, loading, router]);
 
-  if (loading || !user || isGuest) {
-    return <div style={{ height: '100vh', background: 'var(--bg)' }} />;
+  if (loading || venueLoading || !user || isGuest) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Loader2 size={28} color="var(--blue-soft)" style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
   }
 
   const handleSend = async () => {
@@ -40,7 +59,7 @@ export default function AdminPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          venueId: venue.id,
+          venueId: DEFAULT_VENUE_ID,
           section: notification.section,
           message: notification.message,
           type: notification.type,
@@ -58,12 +77,14 @@ export default function AdminPage() {
     setAmenityStates(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const totalCount = Object.values(crowd.zones).reduce((s, z) => s + z.count, 0);
-  const avgDensity = Object.values(crowd.zones).reduce((s, z) => s + z.density, 0) /
-    (Object.values(crowd.zones).length || 1);
+  const crowdZones = crowd.zones ?? {};
+  const totalCount = Object.values(crowdZones).reduce((s, z) => s + (z.count ?? 0), 0);
+  const avgDensity = Object.values(crowdZones).length
+    ? Object.values(crowdZones).reduce((s, z) => s + (z.density ?? 0), 0) / Object.values(crowdZones).length
+    : 0;
 
   const typeEmoji: Record<string, string> = {
-    restroom: '🚻', concession: '🍔', merchandise: '🛍️', gate: '🚪', medical: '🏥',
+    restroom: '🚻', concession: '🍔', merchandise: '🛍️', gate: '🚪', medical: '🏥', elevator: '🛗',
   };
 
   const notifTypeColor: Record<string, string> = {
@@ -124,10 +145,10 @@ export default function AdminPage() {
         {/* ── KPI Strip ─────────────────────────────────────────────────────── */}
         <div className="anim-stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
           {[
-            { label: 'Total Inside', value: formatCount(totalCount), color: 'var(--blue-soft)', icon: Users, sub: `of ${(venue.capacity / 1000).toFixed(0)}k capacity` },
-            { label: 'Avg Density', value: formatPercent(avgDensity), color: getDensityColor(avgDensity), icon: Activity, sub: avgDensity > 0.7 ? '⚠ Elevated — monitor' : 'Within normal range' },
-            { label: 'Open Amenities', value: `${Object.values(amenityStates).filter(Boolean).length}/${venue.amenities.length}`, color: 'var(--green)', icon: CheckCircle, sub: 'All systems operational' },
-            { label: 'Active Zones', value: venue.zones.length.toString(), color: 'var(--amber)', icon: Zap, sub: 'All zones monitored' },
+            { label: 'Total Inside', value: fmtCount(totalCount), color: 'var(--blue-soft)', icon: Users, sub: `of ${((venue.capacity ?? 0) / 1000).toFixed(0)}k capacity` },
+            { label: 'Avg Density', value: fmtPct(avgDensity), color: fmtDensityColor(avgDensity), icon: Activity, sub: avgDensity > 0.7 ? '⚠ Elevated — monitor' : 'Within normal range' },
+            { label: 'Open Amenities', value: `${Object.values(amenityStates).filter(Boolean).length}/${venue.amenities?.length ?? 0}`, color: 'var(--green)', icon: CheckCircle, sub: 'All systems operational' },
+            { label: 'Active Zones', value: (venue.zones?.length ?? 0).toString(), color: 'var(--amber)', icon: Zap, sub: 'All zones monitored' },
           ].map(({ label, value, color, icon: Icon, sub }) => (
             <div key={label} className="card-hi" style={{ padding: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.625rem' }}>
@@ -158,7 +179,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <button 
-                onClick={() => fetch('/api/crowd/update', { method: 'POST', body: JSON.stringify({ venueId: venue.id })})}
+                onClick={() => fetch('/api/crowd/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ venueId: DEFAULT_VENUE_ID })})}
                 className="btn-ghost" 
                 style={{ padding: '0.35rem 0.6rem', fontSize: '0.7rem', color: 'var(--blue-glow)', border: '1px solid rgba(59,130,246,0.3)', gap: '0.4rem' }}
                 title="Simulate random crowd shift"
@@ -167,22 +188,22 @@ export default function AdminPage() {
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {venue.zones.map(zone => {
-                const zd = crowd.zones[zone.id] || { density: zone.density, count: zone.currentCount, capacity: zone.capacity };
-                const color = getDensityColor(zd.density);
+              {(venue.zones ?? []).map(zone => {
+                const zd = crowdZones[zone.id] ?? { density: 0, count: 0, capacity: zone.capacity };
+                const color = fmtDensityColor(zd.density);
                 return (
                   <div key={zone.id} style={{ background: 'var(--bg-1)', borderRadius: 10, padding: '0.875rem 1rem', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                       <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-1)' }}>{zone.name}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{formatCount(zd.count)}/{formatCount(zd.capacity)}</span>
-                        <span className="mono" style={{ fontSize: '0.9rem', fontWeight: 700, color }}>{formatPercent(zd.density)}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{fmtCount(zd.count)}/{fmtCount(zd.capacity)}</span>
+                        <span className="mono" style={{ fontSize: '0.9rem', fontWeight: 700, color }}>{fmtPct(zd.density)}</span>
                       </div>
                     </div>
                     <div style={{ height: 6, background: 'var(--bg-5)', borderRadius: 99, overflow: 'hidden' }}>
                       <div style={{
                         height: '100%', borderRadius: 99,
-                        width: formatPercent(zd.density),
+                        width: fmtPct(zd.density),
                         background: `linear-gradient(90deg, ${color}88, ${color})`,
                         boxShadow: `0 0 8px ${color}77`,
                       }} />
@@ -210,7 +231,7 @@ export default function AdminPage() {
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              {venue.amenities.map(amenity => {
+              {(venue.amenities ?? []).map(amenity => {
                 const isOpen = amenityStates[amenity.id];
                 return (
                   <div key={amenity.id} style={{
@@ -280,7 +301,7 @@ export default function AdminPage() {
               <select className="input-dark"
                 value={notification.section} onChange={e => setNotification(p => ({ ...p, section: e.target.value }))}>
                 <option value="all">All Attendees</option>
-                {venue.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {(venue.sections ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>

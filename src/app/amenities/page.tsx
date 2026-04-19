@@ -1,28 +1,31 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { Loader2, Activity, Filter, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { SAMPLE_VENUES } from '@/lib/sampleData';
-import { formatWaitTime } from '@/lib/utils';
-import { useWaitTimes } from '@/hooks/useRealtimeData';
+import { Loader2, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { fmtWait } from '@/lib/formatters';
+import { useWaitTimes, useVenueData } from '@/hooks/useRealtimeData';
+import { ensureVenueSeeded } from '@/lib/seedFirebase';
 
-const venue = SAMPLE_VENUES[0]; // For MVP, default to MetLife
+const DEFAULT_VENUE_ID = 'metlife-stadium';
 
 export default function AmenitiesPage() {
-  const { amenities: liveAmenities, loading } = useWaitTimes(venue.id);
-  const [filter, setFilter] = useState<'All' | 'Restroom' | 'Concession' | 'Merchandise' | 'Gate'>('All');
+  const { venue } = useVenueData(DEFAULT_VENUE_ID);
+  const { amenities: liveAmenities, loading } = useWaitTimes(DEFAULT_VENUE_ID);
+
+  useEffect(() => { ensureVenueSeeded(DEFAULT_VENUE_ID); }, []);
+
+  const [filter, setFilter] = useState<'all' | 'restroom' | 'concession' | 'merchandise' | 'gate'>('all');
   const [sortBy, setSortBy] = useState<'Wait Time' | 'Name'>('Wait Time');
 
   const filtered = liveAmenities
-    .filter(a => filter === 'All' || a.type === filter)
+    .filter(a => filter === 'all' || a.type === filter)
     .sort((a, b) => {
       if (sortBy === 'Wait Time') return b.waitTime - a.waitTime; // Longest wait first
       return a.name.localeCompare(b.name);
     });
 
   const typeEmoji: Record<string, string> = {
-    'Restroom': '🚻', 'Concession': '🍔', 'Merchandise': '🛍️', 'Gate': '🚪'
+    restroom: '🚻', concession: '🍔', merchandise: '🛍️', gate: '🚪', medical: '🏥',
   };
 
   if (loading) {
@@ -47,14 +50,14 @@ export default function AmenitiesPage() {
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {['All', 'Restroom', 'Concession', 'Merchandise', 'Gate'].map(f => (
+          {(['all', 'restroom', 'concession', 'merchandise', 'gate'] as const).map(f => (
             <button
               key={f}
-              onClick={() => setFilter(f as any)}
+              onClick={() => setFilter(f)}
               className={filter === f ? 'btn-glow' : 'btn-ghost'}
               style={{ padding: '0.5rem 1rem', borderRadius: 20 }}
             >
-              {f}
+              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
@@ -93,14 +96,14 @@ export default function AmenitiesPage() {
                 <div>
                   <div className="label-xs">Current Wait</div>
                   <div className="stat-lg mono" style={{ color: amenity.waitTime > 10 ? 'var(--red)' : amenity.waitTime > 5 ? 'var(--amber)' : 'var(--green)' }}>
-                    {formatWaitTime(amenity.waitTime)}
+                    {fmtWait(amenity.waitTime)}
                   </div>
                 </div>
                 <div>
                   <div className="label-xs">Predict 15m</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.25rem', fontWeight: 600, color: trendColor }}>
                     <TrendIcon size={16} />
-                    <span className="mono">{formatWaitTime(amenity.predictedWaitTime)}</span>
+                    <span className="mono">{fmtWait(amenity.predictedWaitTime)}</span>
                   </div>
                 </div>
               </div>

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp } from 'firebase-admin/app';
-import { getDatabase } from 'firebase-admin/database';
 
-function getAdminDb() {
-  if (!getApps().length) {
-    initializeApp({
-      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-    });
+// Dynamically import client SDK to avoid firebase-admin dependency
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let pushToPath: ((path: string, data: unknown) => unknown) | null = null;
+async function getPusher() {
+  if (!pushToPath) {
+    const mod = await import('@/lib/firebase');
+    pushToPath = mod.pushToPath;
   }
-  return getDatabase(getApp());
+  return pushToPath!;
 }
 
 export async function POST(req: NextRequest) {
@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      const db = getAdminDb();
-      await db.ref(`notifications/${venueId}`).push(notification);
+      const push = await getPusher();
+      await push(`notifications/${venueId}`, notification);
     } catch {
       // RTDB unavailable — still return the notification object for optimistic UI
     }

@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
-import { getDatabase } from 'firebase-admin/database';
 import { SAMPLE_VENUES } from '@/lib/sampleData';
 
-// Minimal admin init using the client env vars (for MVP — no service account needed in dev)
-// In production, use a service account JSON.
-function getAdminDb() {
-  if (!getApps().length) {
-    initializeApp({
-      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-    });
+// Client SDK import — works without a service account for free-tier RTDB
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let writePath: ((path: string, data: unknown) => unknown) | null = null;
+async function getWriter() {
+  if (!writePath) {
+    const mod = await import('@/lib/firebase');
+    writePath = mod.writePath;
   }
-  return getDatabase(getApp());
+  return writePath!;
 }
 
 function simulateDelta(density: number): number {
@@ -45,8 +43,8 @@ export async function POST(req: NextRequest) {
 
     // Write to Firebase RTDB
     try {
-      const db = getAdminDb();
-      await db.ref(`crowd_data/${venueId}`).set(snapshot);
+      const write = await getWriter();
+      await write(`crowd_data/${venueId}`, snapshot);
     } catch {
       // RTDB not available in dev — return the simulated data anyway
     }

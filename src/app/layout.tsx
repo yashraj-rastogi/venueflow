@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
-import AuthModal from '@/components/AuthModal';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -31,7 +30,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body style={{ background: '#080c18' }} className="antialiased">
-        <AuthModal />
         {children}
       </body>
     </html>

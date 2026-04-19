@@ -5,9 +5,11 @@ const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 export async function POST(req: NextRequest) {
-  try {
-    const { amenityName, currentWait, density, timeOfDay } = await req.json();
+  // Parse body once — req.json() can only be called once per request
+  const body = await req.json().catch(() => ({}));
+  const { amenityName = 'Amenity', currentWait = 5, density = 0.5, timeOfDay = 12 } = body;
 
+  try {
     const prompt = `Predict venue amenity wait time in 15 min. Given:
 - Amenity: ${amenityName}
 - Current wait: ${currentWait} min
@@ -21,9 +23,8 @@ Return ONLY valid JSON: {"predictedWait":number,"confidence":number,"trend":"inc
     const data = JSON.parse(json);
 
     return NextResponse.json(data);
-  } catch (err) {
-    // Heuristic fallback
-    const { currentWait = 5, density = 0.5 } = await req.json().catch(() => ({}));
+  } catch {
+    // Heuristic fallback (no re-parse needed)
     const delta = density > 0.7 ? 2 : density < 0.3 ? -2 : 0;
     return NextResponse.json({
       predictedWait: Math.max(0, currentWait + delta),

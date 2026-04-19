@@ -2,22 +2,28 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Activity, Users, Clock, Zap, ArrowRight, ChevronRight, Shield, Map } from 'lucide-react';
-import { SAMPLE_VENUES } from '@/lib/sampleData';
 import { getDensityColor, formatPercent } from '@/lib/utils';
+import { fmtCount } from '@/lib/formatters';
+import { useAllVenues } from '@/hooks/useRealtimeData';
+import { ensureAllVenuesSeeded } from '@/lib/seedFirebase';
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState(new Date());
   const [hovered, setHovered] = useState<string | null>(null);
+  const { venues } = useAllVenues();
 
   useEffect(() => {
     setMounted(true);
     const t = setInterval(() => setTime(new Date()), 1000);
+    // Seed all venues to Firebase RTDB on first page load
+    ensureAllVenuesSeeded();
     return () => clearInterval(t);
   }, []);
 
-  const avgDensity = 0.67;
-  const totalAttendees = 147820;
+  const allDensities = venues.flatMap(v => v.zones.map(z => z.density));
+  const avgDensity = allDensities.length ? allDensities.reduce((a, b) => a + b, 0) / allDensities.length : 0.67;
+  const totalAttendees = venues.reduce((s, v) => s + v.zones.reduce((zs, z) => zs + z.currentCount, 0), 0) || 147820;
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
@@ -104,8 +110,8 @@ export default function HomePage() {
           overflow: 'hidden', marginBottom: '0.5rem',
         }}>
           {[
-            { label: 'Live Venues', value: '3', icon: Map },
-            { label: 'Attendees', value: totalAttendees.toLocaleString(), icon: Users },
+            { label: 'Live Venues', value: venues.length.toString(), icon: Map },
+            { label: 'Attendees', value: fmtCount(totalAttendees), icon: Users },
             { label: 'Avg Density', value: formatPercent(avgDensity), icon: Activity, color: getDensityColor(avgDensity) },
             { label: 'Avg Wait', value: '7m', icon: Clock, color: 'var(--green)' },
           ].map(({ label, value, icon: Icon, color }, i) => (
@@ -131,7 +137,7 @@ export default function HomePage() {
             <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>Active Venues</h2>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', marginTop: 2 }}>Click any venue to open the live dashboard</p>
           </div>
-          <span className="chip chip-blue">{SAMPLE_VENUES.length} Live</span>
+          <span className="chip chip-blue">{venues.length} Live</span>
         </div>
 
         <div className="anim-stagger" style={{
@@ -139,7 +145,7 @@ export default function HomePage() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
           gap: '1.25rem',
         }}>
-          {SAMPLE_VENUES.map((venue, i) => {
+          {venues.map((venue, i) => {
             const density = venue.zones.reduce((s, z) => s + z.density, 0) / venue.zones.length;
             const densityColor = getDensityColor(density);
             const isHovered = hovered === venue.id;

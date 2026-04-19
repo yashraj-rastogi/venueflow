@@ -8,11 +8,11 @@ import {
   TrendingUp, TrendingDown, Minus, Shield, Map, AlertTriangle,
   X, CheckCircle, Info, Zap, ChevronRight, BarChart3, Loader2
 } from 'lucide-react';
-import { SAMPLE_VENUES } from '@/lib/sampleData';
-import { getDensityColor, formatPercent, formatCount, formatWaitTime, getTrendColor, timeAgo } from '@/lib/utils';
+import { fmtCount, fmtPct, fmtWait, fmtDensityColor, fmtTimeAgo } from '@/lib/formatters';
 import { Notification } from '@/types';
-import { useCrowdData, useNotifications } from '@/hooks/useRealtimeData';
+import { useCrowdData, useNotifications, useVenueData, useWaitTimes } from '@/hooks/useRealtimeData';
 import { optimizeRoute } from '@/lib/gemini';
+import { ensureVenueSeeded } from '@/lib/seedFirebase';
 const VenueMap = dynamic(() => import('@/components/Map'), { ssr: false, loading: () => <div style={{ flex: 1, background: 'var(--bg-2)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={24} color="var(--text-4)" style={{ animation: 'spin 1s linear infinite' }} /></div> });
 const AIChat = dynamic(() => import('@/components/AIChat'), { ssr: false });
 
@@ -21,11 +21,12 @@ type Tab = 'overview' | 'amenities' | 'navigate';
 export default function VenueDashboardPage() {
   const params = useParams();
   const venueId = params?.id as string;
-  const venue = SAMPLE_VENUES.find(v => v.id === venueId);
 
   // ── Live Firebase data ───────────────────────────────────────────────────
+  const { venue, loading: venueLoading } = useVenueData(venueId);
   const { crowd, isLive, triggerUpdate } = useCrowdData(venueId);
-  const { notifications, unreadCount } = useNotifications(venueId);
+  const { amenities: liveAmenities } = useWaitTimes(venueId);
+  const { notifications, unreadCount, markAllRead } = useNotifications(venueId);
 
   // ── Local UI state ───────────────────────────────────────────────────────
   const [showNotifs, setShowNotifs] = useState(false);
@@ -44,10 +45,11 @@ export default function VenueDashboardPage() {
   useEffect(() => {
     setMounted(true);
     const t1 = setInterval(() => setTime(new Date()), 1000);
-    // Auto-trigger crowd update every 30s via API route
-    const t2 = setInterval(() => triggerUpdate(), 30000);
+    // Seed Firebase RTDB on load then auto-update crowd every 30s
+    ensureVenueSeeded(venueId);
+    const t2 = setInterval(() => triggerUpdate(), 30_000);
     return () => { clearInterval(t1); clearInterval(t2); };
-  }, [triggerUpdate]);
+  }, [triggerUpdate, venueId]);
 
   const handleGetDirections = async () => {
     if (!venue) return;
@@ -66,6 +68,14 @@ export default function VenueDashboardPage() {
   };
 
   const unread = unreadCount;
+
+  if (venueLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Loader2 size={28} color="var(--blue-soft)" style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
 
   if (!venue) {
     return (
@@ -168,14 +178,14 @@ export default function VenueDashboardPage() {
         <div style={{ padding: '0.75rem 0.75rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ padding: '0.75rem', background: 'var(--bg-1)', borderRadius: 10, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Total Crowd</div>
-            <div className="stat-lg mono" style={{ color: 'var(--text-1)' }}>{formatCount(totalCount)}</div>
+            <div className="stat-lg mono" style={{ color: 'var(--text-1)' }}>{fmtCount(totalCount)}</div>
             <div className="progress-track" style={{ marginTop: 8 }}>
               <div className="progress-fill" style={{
-                width: formatPercent(totalCount / venue.capacity),
+                width: fmtPct(totalCount / venue.capacity),
                 background: `linear-gradient(90deg, var(--blue-glow), var(--indigo))`,
               }} />
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 5 }}>{formatPercent(totalCount / venue.capacity)} of {(venue.capacity / 1000).toFixed(0)}k cap</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 5 }}>{fmtPct(totalCount / venue.capacity)} of {(venue.capacity / 1000).toFixed(0)}k cap</div>
           </div>
         </div>
 
@@ -226,14 +236,14 @@ export default function VenueDashboardPage() {
             {/* Avg density indicator */}
             <div style={{
               padding: '0.375rem 0.875rem',
-              background: `${getDensityColor(avgDensity)}15`,
-              border: `1px solid ${getDensityColor(avgDensity)}30`,
+              background: `${fmtDensityColor(avgDensity)}15`,
+              border: `1px solid ${fmtDensityColor(avgDensity)}30`,
               borderRadius: 8,
               display: 'flex', alignItems: 'center', gap: '0.5rem',
             }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: getDensityColor(avgDensity) }} />
-              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: getDensityColor(avgDensity), fontFamily: 'JetBrains Mono, monospace' }}>
-                {formatPercent(avgDensity)}
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: fmtDensityColor(avgDensity) }} />
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: fmtDensityColor(avgDensity), fontFamily: 'JetBrains Mono, monospace' }}>
+                {fmtPct(avgDensity)}
               </span>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-3)' }}>avg density</span>
             </div>
@@ -241,7 +251,7 @@ export default function VenueDashboardPage() {
             {/* Notifications */}
             <div style={{ position: 'relative' }}>
               <button
-                onClick={() => { setShowNotifs(!showNotifs); setUnread(0); }}
+                onClick={() => { setShowNotifs(!showNotifs); markAllRead(); }}
                 style={{
                   padding: '0.5rem', borderRadius: 9,
                   background: showNotifs ? 'var(--bg-4)' : 'transparent',
@@ -287,7 +297,7 @@ export default function VenueDashboardPage() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-1)', marginBottom: 2 }}>{n.title}</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-3)', lineHeight: 1.45 }}>{n.message}</div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 4 }}>{timeAgo(n.timestamp)}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 4 }}>{fmtTimeAgo(n.timestamp)}</div>
                           </div>
                         </div>
                       </div>
@@ -306,8 +316,8 @@ export default function VenueDashboardPage() {
           borderBottom: '1px solid var(--border)',
         }}>
           {[
-            { label: 'Total Crowd', value: formatCount(totalCount), sub: `of ${(venue.capacity / 1000).toFixed(0)}k cap`, color: 'var(--blue-soft)', icon: Users },
-            { label: 'Avg Density', value: formatPercent(avgDensity), sub: avgDensity > 0.7 ? '⚠ High — alerts active' : 'Within normal range', color: getDensityColor(avgDensity), icon: Activity },
+            { label: 'Total Crowd', value: fmtCount(totalCount), sub: `of ${(venue.capacity / 1000).toFixed(0)}k cap`, color: 'var(--blue-soft)', icon: Users },
+            { label: 'Avg Density', value: fmtPct(avgDensity), sub: avgDensity > 0.7 ? '⚠ High — alerts active' : 'Within normal range', color: fmtDensityColor(avgDensity), icon: Activity },
             { label: 'Active Alerts', value: unread.toString(), sub: `${notifications.length} total notifications`, color: unread > 0 ? 'var(--amber)' : 'var(--green)', icon: Bell },
             { label: 'Max Wait Time', value: `${maxWait}m`, sub: `${openAmenities}/${venue.amenities.length} amenities open`, color: maxWait > 10 ? 'var(--amber)' : 'var(--green)', icon: Clock },
           ].map(({ label, value, sub, color, icon: Icon }) => (
@@ -358,7 +368,7 @@ export default function VenueDashboardPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.875rem' }}>
                 {venue.zones.map(zone => {
                   const zd = crowd.zones[zone.id] || { density: zone.density, count: zone.currentCount, capacity: zone.capacity };
-                  const color = getDensityColor(zd.density);
+                  const color = fmtDensityColor(zd.density);
                   const isSelected = selectedZone === zone.id;
                   return (
                     <div
@@ -375,11 +385,11 @@ export default function VenueDashboardPage() {
                         <div>
                           <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-1)' }}>{zone.name}</div>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-4)', marginTop: 2 }}>
-                            {formatCount(zd.count)} / {formatCount(zd.capacity)} people
+                            {fmtCount(zd.count)} / {fmtCount(zd.capacity)} people
                           </div>
                         </div>
                         <div className="mono" style={{ fontSize: '1.25rem', fontWeight: 800, color, lineHeight: 1 }}>
-                          {formatPercent(zd.density)}
+                          {fmtPct(zd.density)}
                         </div>
                       </div>
 
@@ -387,7 +397,7 @@ export default function VenueDashboardPage() {
                       <div style={{ height: 7, background: 'var(--bg-5)', borderRadius: 99, overflow: 'hidden' }}>
                         <div style={{
                           height: '100%', borderRadius: 99,
-                          width: formatPercent(zd.density),
+                          width: fmtPct(zd.density),
                           background: `linear-gradient(90deg, ${color}77, ${color})`,
                           boxShadow: `0 0 8px ${color}88`,
                           transition: 'width 1s ease',
@@ -428,7 +438,7 @@ export default function VenueDashboardPage() {
                       </div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', lineHeight: 1.5 }}>{n.message}</div>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', flexShrink: 0 }}>{timeAgo(n.timestamp)}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', flexShrink: 0 }}>{fmtTimeAgo(n.timestamp)}</div>
                   </div>
                 ))}
               </div>
@@ -454,7 +464,7 @@ export default function VenueDashboardPage() {
 
             <div className="anim-stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
               {venue.amenities.map(amenity => {
-                const trendColor = getTrendColor(amenity.trend);
+                const trendColor = amenity.trend === 'increasing' ? 'var(--red)' : amenity.trend === 'decreasing' ? 'var(--green)' : 'var(--text-3)';
                 const TrendIcon = amenity.trend === 'increasing' ? TrendingUp : amenity.trend === 'decreasing' ? TrendingDown : Minus;
                 const typeColors: Record<string, string> = {
                   restroom: '#3b82f6', concession: '#f59e0b', merchandise: '#a78bfa', gate: '#10b981', medical: '#ef4444',
@@ -492,14 +502,14 @@ export default function VenueDashboardPage() {
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
                       <div>
                         <div className={`stat-lg mono`} style={{ color: amenity.waitTime > 10 ? 'var(--red)' : amenity.waitTime > 5 ? 'var(--amber)' : 'var(--green)' }}>
-                          {formatWaitTime(amenity.waitTime)}
+                          {fmtWait(amenity.waitTime)}
                         </div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-4)', marginTop: 3 }}>current wait time</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: trendColor, fontSize: '0.875rem', fontWeight: 600 }}>
                           <TrendIcon size={14} />
-                          {formatWaitTime(amenity.predictedWaitTime)}
+                          {fmtWait(amenity.predictedWaitTime)}
                         </div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-4)', marginTop: 1 }}>in 15 minutes</div>
                       </div>
