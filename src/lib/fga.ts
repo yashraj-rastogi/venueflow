@@ -59,12 +59,13 @@ export async function checkPermission(
 
   try {
     const client = getClient();
-    const { allowed } = await client.check({
+    // @openfga/sdk v0.7+: check() takes user/relation/object at the top level
+    const response = await client.check({
       user    : `user:${userId}`,
       relation,
       object  : `${objectType}:${objectId}`,
     });
-    return allowed ?? false;
+    return response.allowed ?? false;
   } catch (err) {
     console.warn('[FGA] Permission check failed:', err);
     // Fail-safe: open for reads, closed for writes
@@ -87,16 +88,18 @@ export async function grantRelationship(
   if (!process.env.OPENFGA_STORE_ID) return;
   try {
     const client = getClient();
+    // @openfga/sdk v0.7+: writes takes a flat TupleKey[] array directly
     await client.write({
-      writes: {
-        tuple_keys: [{
+      writes: [
+        {
           user    : `user:${userId}`,
           relation,
           object  : `${objectType}:${objectId}`,
-        }],
-      },
+        },
+      ],
     });
   } catch (err) {
     console.warn('[FGA] grantRelationship failed:', err);
   }
 }
+
