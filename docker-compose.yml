@@ -1,0 +1,63 @@
+version: "3.9"
+
+# VenueFlow local development services
+# Run: docker compose up -d
+# Stops: docker compose down
+
+services:
+
+  # ── OpenSearch — local vector DB for HNSW floor plan search ────────────────
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    container_name: venueflow-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true        # dev only — no TLS
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'green\\|yellow'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # ── OpenSearch Dashboards — optional UI at http://localhost:5601 ────────────
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.13.0
+    container_name: venueflow-opensearch-dashboards
+    ports:
+      - "5601:5601"
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    profiles:
+      - dashboards             # Only starts with: docker compose --profile dashboards up
+
+  # ── OpenFGA — Relationship-Based Access Control (ReBAC) ────────────────────
+  openfga:
+    image: openfga/openfga:latest
+    container_name: venueflow-openfga
+    command: run
+    ports:
+      - "8080:8080"            # HTTP API
+      - "8081:8081"            # gRPC (optional)
+      - "3000:3000"            # Playground UI → http://localhost:3000
+    environment:
+      - OPENFGA_DATASTORE_ENGINE=memory  # dev only — use postgres in prod
+      - OPENFGA_LOG_FORMAT=text
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  opensearch-data:
+    driver: local

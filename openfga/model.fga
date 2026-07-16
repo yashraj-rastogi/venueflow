@@ -1,0 +1,21 @@
+model
+  schema 1.1
+
+type user
+
+type zone
+  relations
+    define viewer: [user]
+    define editor: [user] or owner
+    define owner: [user]
+
+type venue
+  relations
+    define viewer: [user]
+    define staff:  [user]
+    define admin:  [user] or staff
+
+type notification
+  relations
+    define sender:   [user]
+    define can_send: admin from venue

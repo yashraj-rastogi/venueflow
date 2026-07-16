@@ -6,13 +6,15 @@ import dynamic from 'next/dynamic';
 import {
   Activity, Bell, Navigation, Coffee, LogOut, Users, Clock,
   TrendingUp, TrendingDown, Minus, Shield, Map, AlertTriangle,
-  X, CheckCircle, Info, Zap, ChevronRight, BarChart3, Loader2
+  X, CheckCircle, Info, Zap, ChevronRight, BarChart3, Loader2, Accessibility
 } from 'lucide-react';
 import { fmtCount, fmtPct, fmtWait, fmtDensityColor, fmtTimeAgo } from '@/lib/formatters';
 import { Notification } from '@/types';
 import { useCrowdData, useNotifications, useVenueData, useWaitTimes } from '@/hooks/useRealtimeData';
 import { optimizeRoute } from '@/lib/gemini';
 import { ensureVenueSeeded } from '@/lib/seedFirebase';
+import AccessibleNavigationModal from '@/components/AccessibleNavigationModal';
+import LiveRegion from '@/components/LiveRegion';
 const VenueMap = dynamic(() => import('@/components/Map'), { ssr: false, loading: () => <div style={{ flex: 1, background: 'var(--bg-2)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={24} color="var(--text-4)" style={{ animation: 'spin 1s linear infinite' }} /></div> });
 const AIChat = dynamic(() => import('@/components/AIChat'), { ssr: false });
 
@@ -38,9 +40,11 @@ export default function VenueDashboardPage() {
   // ── Gemini directions state ──────────────────────────────────────────────
   const [navFrom, setNavFrom] = useState(venue?.sections[0]?.id ?? '');
   const [navTo, setNavTo] = useState(venue?.amenities[0]?.id ?? '');
-  const [navMode, setNavMode] = useState<'fastest' | 'least_crowded'>('fastest');
+  const [navMode, setNavMode] = useState<'fastest' | 'least_crowded' | 'wheelchair'>('fastest');
   const [navResult, setNavResult] = useState<{ suggestion: string; crowdLevel: string; estimatedTime: number } | null>(null);
   const [navLoading, setNavLoading] = useState(false);
+  const [showNavModal, setShowNavModal] = useState(false);
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -58,8 +62,9 @@ export default function VenueDashboardPage() {
     const fromLabel = venue.sections.find(s => s.id === navFrom)?.name ?? navFrom;
     const toLabel = venue.amenities.find(a => a.id === navTo)?.name ?? navTo;
     try {
-      const res = await optimizeRoute(fromLabel, toLabel, crowd, navMode === 'least_crowded' ? 'least_crowded' : 'fastest');
+      const res = await optimizeRoute(fromLabel, toLabel, crowd, navMode);
       setNavResult(res);
+      setLiveAnnouncement(`Navigation ready: ${res.suggestion}. Estimated ${res.estimatedTime} minutes.`);
     } catch {
       setNavResult({ suggestion: 'Head via main concourse', crowdLevel: 'medium', estimatedTime: 4 });
     } finally {
@@ -109,11 +114,48 @@ export default function VenueDashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex' }}>
+      {/* ── Accessibility: Screen reader live regions ────────────────────────── */}
+      <LiveRegion id="nav-announcer" message={liveAnnouncement} level="polite" />
+      <LiveRegion
+        id="safety-announcer"
+        message={notifications.filter(n => n.type === 'emergency' && !n.read)[0]?.message ?? ''}
+        level="assertive"
+      />
+
+      {/* ── Accessibility: Navigation modal ─────────────────────────────────── */}
+      <AccessibleNavigationModal
+        isOpen={showNavModal}
+        onClose={() => setShowNavModal(false)}
+        title="Get Directions"
+      >
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-3)', marginBottom: '1.25rem' }}>
+          Select a starting section and destination, then choose your routing preference.
+        </p>
+        {navResult && (
+          <div style={{ padding: '1rem', background: 'var(--bg-1)', borderRadius: 12, marginBottom: '1rem', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-1)', marginBottom: '0.5rem' }}>
+              {navResult.suggestion}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-4)' }}>
+              ~{navResult.estimatedTime} min walk · Crowd: {navResult.crowdLevel}
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => setShowNavModal(false)}
+          className="btn-glow"
+          style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
+        >
+          Close
+        </button>
+      </AccessibleNavigationModal>
+
       {/* ── Radial glow ──────────────────────────────────────────────────────── */}
       <div style={{
         position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
         background: 'radial-gradient(ellipse 60% 40% at 10% 0%, rgba(59,130,246,0.08) 0%, transparent 60%)',
       }} />
+
 
       {/* ══════════════════════════════════════════════════════════════════════
           SIDEBAR
@@ -571,13 +613,18 @@ export default function VenueDashboardPage() {
                     </div>
                     <div>
                       <div className="label-xs" style={{ marginBottom: 6 }}>Mode</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                        {([['fastest', '⚡ Fastest'], ['least_crowded', '🌿 Less Crowded']] as const).map(([val, label]) => (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.4rem' }}>
+                        {([
+                          ['fastest',       '⚡ Fastest'],
+                          ['least_crowded', '🌿 Less Crowded'],
+                          ['wheelchair',    '♿ Step-Free'],
+                        ] as const).map(([val, label]) => (
                           <button
                             key={val}
                             onClick={() => setNavMode(val)}
                             className={navMode === val ? 'btn-glow' : 'btn-ghost'}
-                            style={{ justifyContent: 'center', fontSize: '0.72rem', padding: '0.4rem', borderRadius: 9 }}
+                            style={{ justifyContent: 'center', fontSize: '0.68rem', padding: '0.35rem', borderRadius: 9 }}
+                            aria-pressed={navMode === val}
                           >{label}</button>
                         ))}
                       </div>

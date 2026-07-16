@@ -1,5 +1,15 @@
 // ============ VenueFlow Core Types ============
 
+/** Climate and transit risk profile for a host-city venue */
+export interface VenueRiskProfile {
+  /** e.g. ["wildfire_smoke", "extreme_heat", "seismic"] */
+  climateRisks: string[];
+  /** e.g. ["NJ_Transit_saturation", "LAX_congestion"] */
+  transitVulnerabilities: string[];
+  /** Fahrenheit threshold that triggers a heat-wave alert, e.g. 100 for Dallas */
+  heatThresholdF?: number;
+}
+
 export interface Venue {
   id: string;
   name: string;
@@ -11,6 +21,8 @@ export interface Venue {
   amenities: Amenity[];
   sections: Section[];
   imageUrl?: string;
+  /** Host-city environmental and transit risk profile */
+  riskProfile?: VenueRiskProfile;
 }
 
 export interface Zone {
@@ -18,9 +30,31 @@ export interface Zone {
   name: string;
   capacity: number;
   currentCount: number;
-  density: number; // 0–1
+  density: number; // 0–1 occupancy ratio
   coordinates: LatLng[];
   color?: string;
+  // ── DIM-ICE physical fields (spec requirement) ──────────────────────────
+  /** Floor area in m² — used to compute physical density ρ = N/A */
+  areaM2?: number;
+  /** Total egress width in metres — used for flow rate F = N/(W·t) */
+  egressWidthM?: number;
+  /** true = wheelchair-accessible / step-free (no stairs or escalators) */
+  isStepFree?: boolean;
+  /** Ingress-Circulation-Egress phase classification */
+  phase?: 'ingress' | 'circulation' | 'egress';
+}
+
+// ── DIM-ICE Safety Metrics ───────────────────────────────────────────────────
+/** Computed output of the DIM-ICE safety evaluation for a zone */
+export interface SafetyMetrics {
+  /** Physical crowd density ρ = N/A (people/m²). Spec threshold: ≤ 4.5 */
+  physicalDensity: number;
+  /** Egress flow rate F = N/(W·t) (pax/min). Spec threshold: ≥ 25 */
+  flowRate: number;
+  /** Evaluated safety phase */
+  dimIcePhase: 'safe' | 'warning' | 'critical';
+  /** Whether crowd management staff reallocation is triggered */
+  staffReallocationNeeded: boolean;
 }
 
 export interface Amenity {
@@ -73,7 +107,7 @@ export interface Notification {
 
 export interface RouteOption {
   id: string;
-  type: 'fastest' | 'least_crowded';
+  type: 'fastest' | 'least_crowded' | 'wheelchair';
   waypoints: LatLng[];
   estimatedTime: number; // minutes
   crowdLevel: 'low' | 'medium' | 'high';
@@ -83,7 +117,7 @@ export interface RouteOption {
 export interface NavigationRequest {
   start: string; // section ID
   destination: string; // amenity ID or exit
-  preference: 'fastest' | 'least_crowded';
+  preference: 'fastest' | 'least_crowded' | 'wheelchair';
   venueId: string;
 }
 
