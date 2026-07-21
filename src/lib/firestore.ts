@@ -1,0 +1,170 @@
+/**
+ * firestore.ts — Firestore client + typed collection helpers
+ *
+ * Architecture:
+ *   - Firebase RTDB  → real-time crowd counters (low-latency pub/sub)
+ *   - Firestore      → persistent data (orgs, venues, events, staff, incidents)
+ *
+ * IMPORTANT: This module is imported by both client and server components.
+ * On the server (API routes), use firebase-admin for privileged access.
+ * On the client, use the regular Firebase SDK.
+ */
+import {
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
+  updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot,
+  serverTimestamp, Timestamp, DocumentData, QueryConstraint,
+  writeBatch, arrayUnion,
+} from 'firebase/firestore';
+import { app } from '@/lib/firebase';
+import {
+  Organization, StaffMember, VenueEvent, Incident,
+  GuestSession, Venue, StaffRole,
+} from '@/types';
+
+export const db = getFirestore(app);
+
+// ── Collection references ─────────────────────────────────────────────────────
+
+export const orgsCol      = () => collection(db, 'organizations');
+export const venuesCol    = (orgId: string) => collection(db, `organizations/${orgId}/venues`);
+export const staffCol     = (orgId: string, venueId: string) =>
+  collection(db, `organizations/${orgId}/venues/${venueId}/staff`);
+export const eventsCol    = () => collection(db, 'events');
+export const incidentsCol = () => collection(db, 'incidents');
+export const guestsCol    = () => collection(db, 'guest_sessions');
+export const snapshotsCol = (venueId: string) =>
+  collection(db, `crowd_snapshots/${venueId}/snapshots`);
+
+// ── Organization helpers ──────────────────────────────────────────────────────
+
+export async function getOrganization(orgId: string): Promise<Organization | null> {
+  const snap = await getDoc(doc(db, 'organizations', orgId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } as Organization : null;
+}
+
+export async function createOrganization(data: Omit<Organization, 'id' | 'createdAt' | 'venueIds'>): Promise<string> {
+  const ref = doc(orgsCol(), data.slug);
+  await setDoc(ref, { ...data, createdAt: Date.now(), venueIds: [], plan: 'starter' });
+  return ref.id;
+}
+
+export async function updateOrganization(orgId: string, data: Partial<Organization>): Promise<void> {
+  await updateDoc(doc(db, 'organizations', orgId), data as DocumentData);
+}
+
+// ── Venue helpers ─────────────────────────────────────────────────────────────
+
+export async function getOrgVenues(orgId: string): Promise<Venue[]> {
+  const snaps = await getDocs(venuesCol(orgId));
+  return snaps.docs.map(d => ({ id: d.id, ...d.data() }) as Venue);
+}
+
+export async function createVenueInOrg(orgId: string, venueData: Omit<Venue, 'id'>): Promise<string> {
+  const ref  = await addDoc(venuesCol(orgId), venueData);
+  // Append the new venueId to the org's venueIds array atomically
+  await updateDoc(doc(db, 'organizations', orgId), {
+    venueIds: arrayUnion(ref.id),
+  });
+  return ref.id;
+}
+
+// ── Staff helpers ─────────────────────────────────────────────────────────────
+
+export async function getVenueStaff(orgId: string, venueId: string): Promise<StaffMember[]> {
+  const snaps = await getDocs(staffCol(orgId, venueId));
+  return snaps.docs.map(d => ({ uid: d.id, ...d.data() }) as StaffMember);
+}
+
+export async function upsertStaffMember(
+  orgId: string, venueId: string, member: StaffMember,
+): Promise<void> {
+  await setDoc(doc(staffCol(orgId, venueId), member.uid), member, { merge: true });
+}
+
+export async function getStaffRole(orgId: string, venueId: string, uid: string): Promise<StaffRole | null> {
+  const snap = await getDoc(doc(staffCol(orgId, venueId), uid));
+  return snap.exists() ? (snap.data().role as StaffRole) : null;
+}
+
+// ── Event helpers ─────────────────────────────────────────────────────────────
+
+export async function getVenueEvents(venueId: string, statusFilter?: VenueEvent['status']): Promise<VenueEvent[]> {
+  const constraints: QueryConstraint[] = [where('venueId', '==', venueId), limit(25)];
+  if (statusFilter) constraints.push(where('status', '==', statusFilter));
+  const snaps = await getDocs(query(eventsCol(), ...constraints));
+  const list  = snaps.docs.map(d => ({ id: d.id, ...d.data() }) as VenueEvent);
+  return list.sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
+}
+
+export async function createEvent(data: Omit<VenueEvent, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(eventsCol(), { ...data, createdAt: Date.now() });
+  return ref.id;
+}
+
+export async function updateEvent(eventId: string, data: Partial<VenueEvent>): Promise<void> {
+  await updateDoc(doc(eventsCol(), eventId), data as DocumentData);
+}
+
+export function subscribeToLiveEvent(
+  venueId: string,
+  callback: (event: VenueEvent | null) => void,
+): () => void {
+  const q = query(eventsCol(), where('venueId', '==', venueId), where('status', '==', 'live'), limit(1));
+  return onSnapshot(q, snap => {
+    if (snap.empty) { callback(null); return; }
+    callback({ id: snap.docs[0].id, ...snap.docs[0].data() } as VenueEvent);
+  });
+}
+
+// ── Incident helpers ──────────────────────────────────────────────────────────
+
+export async function createIncident(data: Omit<Incident, 'id'>): Promise<string> {
+  const ref = await addDoc(incidentsCol(), data);
+  return ref.id;
+}
+
+export async function getOpenIncidents(venueId: string): Promise<Incident[]> {
+  const q = query(incidentsCol(), where('venueId', '==', venueId), where('status', '!=', 'resolved'), orderBy('status'), orderBy('reportedAt', 'desc'));
+  const snaps = await getDocs(q);
+  return snaps.docs.map(d => ({ id: d.id, ...d.data() }) as Incident);
+}
+
+export async function resolveIncident(incidentId: string): Promise<void> {
+  await updateDoc(doc(incidentsCol(), incidentId), { status: 'resolved', resolvedAt: Date.now() });
+}
+
+export function subscribeToIncidents(
+  venueId: string,
+  callback: (incidents: Incident[]) => void,
+): () => void {
+  const q = query(incidentsCol(), where('venueId', '==', venueId), where('status', '!=', 'resolved'), orderBy('status'), orderBy('reportedAt', 'desc'), limit(20));
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Incident));
+  });
+}
+
+// ── Guest session helpers ─────────────────────────────────────────────────────
+
+export async function createGuestSession(data: Omit<GuestSession, 'id'>): Promise<string> {
+  const ref = await addDoc(guestsCol(), data);
+  return ref.id;
+}
+
+export async function getActiveGuestCount(venueId: string): Promise<number> {
+  const fiveMinsAgo = Date.now() - 5 * 60 * 1000;
+  const q = query(guestsCol(), where('venueId', '==', venueId), where('lastSeenAt', '>', fiveMinsAgo));
+  const snaps = await getDocs(q);
+  return snaps.size;
+}
+
+// ── Crowd snapshot helpers ────────────────────────────────────────────────────
+
+export async function saveCrowdSnapshot(venueId: string, snapshot: Record<string, unknown>): Promise<void> {
+  await addDoc(snapshotsCol(venueId), { ...snapshot, savedAt: Date.now() });
+}
+
+export async function getCrowdHistory(venueId: string, limitN = 48): Promise<DocumentData[]> {
+  const q = query(snapshotsCol(venueId), orderBy('savedAt', 'desc'), limit(limitN));
+  const snaps = await getDocs(q);
+  return snaps.docs.map(d => d.data());
+}

@@ -6,7 +6,7 @@ import { checkPermission } from '@/lib/fga';
 let pushToPath: ((path: string, data: unknown) => unknown) | null = null;
 async function getPusher() {
   if (!pushToPath) {
-    const mod  = await import('@/lib/firebase');
+    const mod  = await import('@/lib/firebaseAdmin');
     pushToPath = mod.pushToPath;
   }
   return pushToPath!;

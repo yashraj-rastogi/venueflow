@@ -141,3 +141,118 @@ export function getDensityColor(density: number): string {
   if (density < 0.7) return '#F59E0B';
   return '#EF4444';
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MULTI-TENANT SAAS TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type StaffRole = 'viewer' | 'staff' | 'admin' | 'owner';
+export type PlanTier  = 'starter' | 'pro' | 'enterprise';
+
+/** A venue operating company (customer of VenueFlow SaaS) */
+export interface Organization {
+  id         : string;
+  name       : string;
+  slug       : string;         // URL-safe identifier e.g. "nfl-giants"
+  plan       : PlanTier;
+  ownerEmail : string;
+  createdAt  : number;
+  venueIds   : string[];
+  logoUrl   ?: string;
+  domain    ?: string;         // e.g. "giants.com" for domain verification
+}
+
+/** Staff member scoped to a venue */
+export interface StaffMember {
+  uid       : string;          // Firebase Auth UID
+  email     : string;
+  name      : string;
+  role      : StaffRole;
+  venueId   : string;
+  orgId     : string;
+  joinedAt  : number;
+  isOnDuty  : boolean;
+  avatarUrl?: string;
+}
+
+// ── Event phases (drives realistic crowd simulation curve) ───────────────────
+export type EventPhaseId = 'doors_open' | 'pre_game' | 'first_half' | 'halftime' | 'second_half' | 'post_game' | 'egress';
+
+export interface EventPhase {
+  id               : EventPhaseId;
+  label            : string;
+  durationMins     : number;
+  /** 0–1 target fill ratio per zone type for this phase */
+  zoneFillRatios   : {
+    ingress     : number;
+    circulation : number;
+    egress      : number;
+  };
+}
+
+/** A live or scheduled event at a venue */
+export interface VenueEvent {
+  id                : string;
+  venueId           : string;
+  orgId             : string;
+  name              : string;       // e.g. "Giants vs Cowboys — Week 4"
+  type              : 'nfl' | 'nba' | 'concert' | 'soccer' | 'other';
+  date              : number;       // Unix timestamp (event start)
+  expectedAttendance: number;
+  status            : 'upcoming' | 'live' | 'ended';
+  currentPhaseId   ?: EventPhaseId;
+  phaseStartedAt   ?: number;       // When current phase began
+  actualAttendance ?: number;       // Set when event ends
+  weatherRiskFactor?: number;       // 0–1 (heat/rain reduces fill rate)
+  createdAt         : number;
+}
+
+/** Staff-reported incident */
+export interface Incident {
+  id         : string;
+  venueId    : string;
+  orgId      : string;
+  zoneId    ?: string;
+  type       : 'overcrowding' | 'medical' | 'security' | 'weather' | 'amenity_failure' | 'other';
+  severity   : 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  reportedBy : string;   // staff UID
+  reportedAt : number;
+  status     : 'open' | 'acknowledged' | 'resolved';
+  resolvedAt?: number;
+}
+
+/** Anonymous guest session created at QR check-in */
+export interface GuestSession {
+  id         : string;
+  venueId    : string;
+  zoneId     : string;
+  section   ?: string;
+  seat      ?: string;
+  language   : string;
+  createdAt  : number;
+  lastSeenAt : number;
+}
+
+/** Weather alert for a venue */
+export interface WeatherAlert {
+  id         : string;
+  venueId    : string;
+  type       : 'extreme_heat' | 'thunderstorm' | 'tornado_watch' | 'hurricane' | 'flooding' | 'air_quality';
+  severity   : 'advisory' | 'watch' | 'warning' | 'emergency';
+  message    : string;
+  tempF     ?: number;
+  issuedAt   : number;
+  expiresAt  : number;
+}
+
+/** Partner API key for external integrations */
+export interface ApiKey {
+  id        : string;
+  venueId   : string;
+  orgId     : string;
+  keyHash   : string;   // bcrypt hash (never store raw key)
+  label     : string;   // e.g. "Scoreboard Integration"
+  createdAt : number;
+  lastUsedAt: number;
+}

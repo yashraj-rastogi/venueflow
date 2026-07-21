@@ -2,8 +2,8 @@
  * modelRouter.ts — Budget-Aware AI Model Router
  *
  * Routes queries to the right Gemini model tier based on complexity:
- *   Tier 1 — Deterministic  : gemini-2.5-flash  (fast, cached, factual)
- *   Tier 2 — Contextual     : gemini-2.5-flash  (default, crowd-aware)
+ *   Tier 1 — Deterministic  : gemini-1.5-flash  (fast, cached, factual)
+ *   Tier 2 — Contextual     : gemini-1.5-flash  (default, crowd-aware)
  *   Tier 3 — Planning       : gemini-1.5-pro    (multi-step, emergency)
  */
 
@@ -46,7 +46,7 @@ export function classifyQuery(query: string): RouterDecision {
   if (isDeterministic) {
     return {
       complexity : 'deterministic',
-      model      : 'gemini-2.5-flash',
+      model      : 'gemini-1.5-flash',
       useCache   : true,
       systemHint : 'Answer briefly and factually in one sentence.',
     };
@@ -67,7 +67,7 @@ export function classifyQuery(query: string): RouterDecision {
   // Tier 2 — Contextual: General crowd-aware queries (default)
   return {
     complexity : 'contextual',
-    model      : 'gemini-2.5-flash',
+    model      : 'gemini-1.5-flash',
     useCache   : true,
     systemHint : 'Use current crowd context to give a helpful, concise answer.',
   };

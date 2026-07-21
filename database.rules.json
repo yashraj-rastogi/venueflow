@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "venues": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "crowd_data": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "wait_times": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "notifications": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

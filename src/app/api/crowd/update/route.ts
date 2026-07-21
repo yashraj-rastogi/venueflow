@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SAMPLE_VENUES } from '@/lib/sampleData';
 import { evaluateZoneSafety } from '@/lib/safety';
 
-// Client SDK import — works without a service account for free-tier RTDB
+// Admin SDK import — privileged server-side RTDB writes (bypasses security rules)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let writePath: ((path: string, data: unknown) => unknown) | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,7 +10,7 @@ let pushToPath: ((path: string, data: unknown) => unknown) | null = null;
 
 async function getFirebase() {
   if (!writePath || !pushToPath) {
-    const mod = await import('@/lib/firebase');
+    const mod = await import('@/lib/firebaseAdmin');
     writePath  = mod.writePath;
     pushToPath = mod.pushToPath;
   }

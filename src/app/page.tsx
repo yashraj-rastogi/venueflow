@@ -1,292 +1,239 @@
 'use client';
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Activity, Users, Clock, Zap, ArrowRight, ChevronRight, Shield, Map } from 'lucide-react';
-import { getDensityColor, formatPercent } from '@/lib/utils';
-import { fmtCount } from '@/lib/formatters';
-import { useAllVenues } from '@/hooks/useRealtimeData';
-import { ensureAllVenuesSeeded } from '@/lib/seedFirebase';
+import { useState, useEffect } from 'react';
+import {
+  Activity, ArrowRight, BarChart3, Bell, Bot, CheckCircle,
+  Globe, MapPin, QrCode, Shield, Users, Zap,
+} from 'lucide-react';
+
+/* ── Fake live counter that ticks up ────────────────────────────── */
+function useCounter(start: number, interval = 4000) {
+  const [val, setVal] = useState(start);
+  useEffect(() => {
+    const t = setInterval(() => setVal(v => v + Math.floor(Math.random() * 12 + 3)), interval);
+    return () => clearInterval(t);
+  }, [interval]);
+  return val.toLocaleString();
+}
+
+const FEATURES = [
+  { icon: BarChart3, title: 'Real-Time Crowd Density', desc: 'Zone-by-zone occupancy updated every 30 seconds from simulated IoT sensors — no hardware required to start.' },
+  { icon: Shield,    title: 'DIM-ICE Safety System', desc: 'Automated crowd pressure scores trigger staff alerts before situations become dangerous.' },
+  { icon: Bot,       title: 'AI Navigation Assistant', desc: 'Multilingual Gemini-powered chat helps guests find restrooms, food, and exits in 6 languages.' },
+  { icon: Bell,      title: 'Instant Broadcast', desc: 'Push targeted messages to specific sections or the entire venue in one click.' },
+  { icon: QrCode,    title: 'QR Guest Check-In', desc: 'Guests scan a QR code at the gate — no app download, no account. Works in any browser.' },
+  { icon: Globe,     title: 'Partner REST API', desc: 'Third-party integrations via a documented REST API with Bearer token auth and rate limiting.' },
+];
+
+const STEPS = [
+  { n: '01', title: 'Create your account', desc: 'Sign in with Google and name your organization. Takes 30 seconds.' },
+  { n: '02', title: 'Add your venue', desc: 'Type your stadium name. Real coordinates, capacity, and zones are pre-loaded automatically.' },
+  { n: '03', title: 'Go live', desc: 'Create an event, start the simulation, and share the QR code with your guests.' },
+];
+
+const LOGOS = ['NFL', 'MLS', 'NBA', 'Live Nation', 'AEG', 'Oak View'];
 
 export default function HomePage() {
-  const [mounted, setMounted] = useState(false);
-  const [time, setTime] = useState(new Date());
-  const [hovered, setHovered] = useState<string | null>(null);
-  const { venues } = useAllVenues();
-
-  useEffect(() => {
-    setMounted(true);
-    const t = setInterval(() => setTime(new Date()), 1000);
-    // Seed all venues to Firebase RTDB on first page load
-    ensureAllVenuesSeeded();
-    return () => clearInterval(t);
-  }, []);
-
-  const allDensities = venues.flatMap(v => v.zones.map(z => z.density));
-  const avgDensity = allDensities.length ? allDensities.reduce((a, b) => a + b, 0) / allDensities.length : 0.67;
-  const totalAttendees = venues.reduce((s, v) => s + v.zones.reduce((zs, z) => zs + z.currentCount, 0), 0) || 147820;
+  const guestCount = useCounter(142_880);
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-1)' }}>
 
-      {/* ── Radial glow backdrop ─────────────────────────────────────────────── */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-        background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.12) 0%, transparent 70%)',
-      }} />
-      <div className="bg-grid" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, opacity: 0.4 }} />
-
-      {/* ── Top nav ─────────────────────────────────────────────────────────── */}
+      {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(8,12,24,0.85)',
-        backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border)',
+        background: 'rgba(9,9,11,0.90)',
+        backdropFilter: 'blur(16px)',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 1.5rem', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 1.5rem', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 9,
-              background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 16px rgba(59,130,246,0.4)',
-            }}>
-              <Activity size={16} color="#fff" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Activity size={15} color="#fff" />
             </div>
-            <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.01em' }}>
-              Venue<span style={{ color: 'var(--blue-soft)' }}>Flow</span>
-            </span>
+            <span style={{ fontWeight: 700, fontSize: '0.9375rem', letterSpacing: '-0.01em' }}>VenueFlow</span>
           </div>
 
-          {/* Center: live ticker */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-            <span className="live-badge"><span className="live-dot" />Live</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-3)', fontFamily: 'JetBrains Mono, monospace' }}>
-              {mounted ? time.toLocaleTimeString() : '--:--:--'}
-            </span>
+          {/* Links */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            {['Features', 'How it works', 'Pricing'].map(l => (
+              <a key={l} href={`#${l.toLowerCase().replace(/ /g, '-')}`} style={{ padding: '0.4rem 0.75rem', borderRadius: 7, fontSize: '0.875rem', color: 'var(--text-2)', textDecoration: 'none', transition: 'color 120ms' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-2)')}
+              >
+                {l}
+              </a>
+            ))}
           </div>
 
-          {/* Right */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Link href="/admin" style={{ textDecoration: 'none' }}>
-              <button className="btn-ghost">
-                <Shield size={14} /> Admin
-              </button>
-            </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link href="/login" className="btn-ghost" style={{ fontSize: '0.875rem', padding: '0.4rem 0.875rem' }}>Sign in</Link>
+            <Link href="/onboarding" className="btn-primary" style={{ fontSize: '0.875rem', padding: '0.4rem 0.875rem' }}>Get started free</Link>
           </div>
         </div>
       </nav>
 
-      {/* ── Hero ──────────────────────────────────────────────────────────────── */}
-      <header style={{ position: 'relative', zIndex: 1, padding: '5rem 1.5rem 4rem', textAlign: 'center' }}>
-        {/* Eyebrow */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-          <div className="chip chip-blue">
-            <Zap size={10} /> AI-Powered Intelligence
-          </div>
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <section style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1.5rem 4rem', textAlign: 'center' }}>
+        {/* Live indicator */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0.75rem', borderRadius: 99, background: 'var(--surface)', border: '1px solid var(--border)', marginBottom: '1.75rem', fontSize: '0.8125rem', color: 'var(--text-2)' }}>
+          <span className="live-dot" />
+          <span><strong style={{ color: 'var(--text-1)' }}>{guestCount}</strong> guests tracked right now</span>
         </div>
 
-        <h1 style={{
-          fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', fontWeight: 900,
-          letterSpacing: '-0.04em', lineHeight: 1.05,
-          color: 'var(--text-1)', marginBottom: '1.25rem',
-        }}>
-          The Control Room<br />
-          <span style={{
-            background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #a78bfa 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>for Every Venue</span>
+        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: '1.25rem', maxWidth: 800, margin: '0 auto 1.25rem' }}>
+          Crowd intelligence for<br />
+          <span style={{ color: 'var(--brand-light)' }}>the world's biggest venues</span>
         </h1>
 
-        <p style={{ fontSize: '1.125rem', color: 'var(--text-2)', maxWidth: 560, margin: '0 auto 2.5rem', lineHeight: 1.65 }}>
-          Real-time crowd intelligence, AI wait-time predictions, and smart navigation — all in one command center.
+        <p style={{ fontSize: 'clamp(1rem, 2vw, 1.125rem)', color: 'var(--text-2)', maxWidth: 560, margin: '0 auto 2.5rem', lineHeight: 1.7 }}>
+          Real-time occupancy monitoring, AI-powered guest navigation, and automated safety alerts — deployed in minutes, not months.
         </p>
 
-        {/* Live global stats strip */}
-        <div style={{
-          display: 'inline-flex', gap: '0', borderRadius: 14,
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid var(--border)',
-          overflow: 'hidden', marginBottom: '0.5rem',
-        }}>
-          {[
-            { label: 'Live Venues', value: venues.length.toString(), icon: Map },
-            { label: 'Attendees', value: fmtCount(totalAttendees), icon: Users },
-            { label: 'Avg Density', value: formatPercent(avgDensity), icon: Activity, color: getDensityColor(avgDensity) },
-            { label: 'Avg Wait', value: '7m', icon: Clock, color: 'var(--green)' },
-          ].map(({ label, value, icon: Icon, color }, i) => (
-            <div key={label} style={{
-              padding: '0.875rem 1.5rem',
-              borderRight: i < 3 ? '1px solid var(--border)' : 'none',
-              minWidth: 130,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                <Icon size={12} color={color ?? 'var(--text-4)'} />
-                <span className="label-xs">{label}</span>
-              </div>
-              <div className="stat-lg mono" style={{ color: color ?? 'var(--text-1)' }}>{value}</div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href="/onboarding" className="btn-primary" style={{ fontSize: '0.9375rem', padding: '0.625rem 1.5rem', gap: '0.5rem' }}>
+            Start free trial <ArrowRight size={16} />
+          </Link>
+          <Link href="/g/metlife-stadium" className="btn-ghost" style={{ fontSize: '0.9375rem', padding: '0.625rem 1.5rem' }}>
+            View live demo
+          </Link>
         </div>
-      </header>
 
-      {/* ── Venue Cards ─────────────────────────────────────────────────────── */}
-      <main style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto', padding: '0 1.5rem 6rem' }}>
-        <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>Active Venues</h2>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', marginTop: 2 }}>Click any venue to open the live dashboard</p>
+        {/* Mini dashboard preview */}
+        <div style={{ marginTop: '3.5rem', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden', background: 'var(--surface)', maxWidth: 820, margin: '3.5rem auto 0' }}>
+          {/* Fake browser chrome */}
+          <div style={{ padding: '0.625rem 1rem', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {['#dc2626', '#d97706', '#16a34a'].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c, opacity: 0.8 }} />)}
+            <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 6, padding: '0.2rem 0.75rem', marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-3)' }}>
+              app.venueflow.io/org/nfl-demo/venue/metlife-stadium/admin
+            </div>
           </div>
-          <span className="chip chip-blue">{venues.length} Live</span>
-        </div>
-
-        <div className="anim-stagger" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-          gap: '1.25rem',
-        }}>
-          {venues.map((venue, i) => {
-            const density = venue.zones.reduce((s, z) => s + z.density, 0) / venue.zones.length;
-            const densityColor = getDensityColor(density);
-            const isHovered = hovered === venue.id;
-
-            const gradients = [
-              'linear-gradient(135deg, #1e3a6e 0%, #0d1225 100%)',
-              'linear-gradient(135deg, #1a1a4e 0%, #0d1225 100%)',
-              'linear-gradient(135deg, #1e2a4e 0%, #0d1225 100%)',
-            ];
-
-            return (
-              <Link key={venue.id} href={`/venue/${venue.id}`} style={{ textDecoration: 'none' }}>
-                <div
-                  onMouseEnter={() => setHovered(venue.id)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{
-                    background: 'var(--bg-2)',
-                    border: `1px solid ${isHovered ? 'rgba(59,130,246,0.3)' : 'var(--border)'}`,
-                    borderRadius: 18,
-                    overflow: 'hidden',
-                    transition: 'all 0.25s ease',
-                    transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
-                    boxShadow: isHovered ? '0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(59,130,246,0.1)' : '0 4px 20px rgba(0,0,0,0.2)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {/* Card header image area */}
-                  <div style={{
-                    height: 120,
-                    background: gradients[i % 3],
-                    position: 'relative',
-                    overflow: 'hidden',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {/* Decorative rings */}
-                    <div style={{
-                      position: 'absolute', width: 200, height: 200,
-                      borderRadius: '50%', border: `1px solid ${densityColor}22`,
-                      top: '50%', left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                    }} />
-                    <div style={{
-                      position: 'absolute', width: 140, height: 140,
-                      borderRadius: '50%', border: `1px solid ${densityColor}33`,
-                      top: '50%', left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                    }} />
-                    <div style={{
-                      width: 60, height: 60, borderRadius: '50%',
-                      background: `${densityColor}22`,
-                      border: `2px solid ${densityColor}55`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: `0 0 24px ${densityColor}44`,
-                    }}>
-                      <Activity size={22} color={densityColor} />
-                    </div>
-                    {/* capacity badge */}
-                    <div style={{ position: 'absolute', top: 12, left: 14 }}>
-                      <div className="chip chip-blue" style={{ backdropFilter: 'blur(8px)', background: 'rgba(59,130,246,0.15)' }}>
-                        <Users size={9} /> {(venue.capacity / 1000).toFixed(0)}k cap
-                      </div>
-                    </div>
-                    <div style={{ position: 'absolute', top: 12, right: 14 }}>
-                      <span className="live-badge"><span className="live-dot" />Live</span>
-                    </div>
-                  </div>
-
-                  {/* Card body */}
-                  <div style={{ padding: '1.125rem 1.25rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
-                      <div>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.01em' }}>{venue.name}</h3>
-                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', marginTop: 2 }}>{venue.city}</p>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="stat-lg mono" style={{ color: densityColor }}>{formatPercent(density)}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-4)', marginTop: 1 }}>avg density</div>
-                      </div>
-                    </div>
-
-                    {/* Zone density bars */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-                      {venue.zones.slice(0, 3).map(zone => {
-                        const zColor = getDensityColor(zone.density);
-                        return (
-                          <div key={zone.id}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{zone.name}</span>
-                              <span className="mono" style={{ fontSize: '0.75rem', color: zColor, fontWeight: 600 }}>{formatPercent(zone.density)}</span>
-                            </div>
-                            <div className="progress-track">
-                              <div className="progress-fill" style={{ width: formatPercent(zone.density), background: `linear-gradient(90deg, ${zColor}88, ${zColor})` }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Footer */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <span className={`chip ${density > 0.7 ? 'chip-red' : density > 0.4 ? 'chip-amber' : 'chip-green'}`}>
-                          {density > 0.7 ? '⚠ High' : density > 0.4 ? 'Moderate' : 'Low'} Crowd
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--blue-soft)', fontSize: '0.8rem', fontWeight: 600 }}>
-                        Open Dashboard <ChevronRight size={14} />
-                      </div>
-                    </div>
-                  </div>
+          {/* Mini stat grid */}
+          <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+            {[
+              { label: 'Total guests',   value: '74,218', color: 'var(--text-1)' },
+              { label: 'Avg occupancy',  value: '89%',    color: 'var(--warning)' },
+              { label: 'Critical zones', value: '2',      color: 'var(--danger)' },
+              { label: 'Open incidents', value: '0',      color: 'var(--success)' },
+            ].map(s => (
+              <div key={s.label} style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '0.875rem', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '1.375rem', fontWeight: 700, color: s.color, letterSpacing: '-0.02em' }}>{s.value}</div>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--text-3)', marginTop: '0.25rem' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {/* Zone bars */}
+          <div style={{ padding: '0 1.25rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {[
+              { name: 'Section 101–120', pct: 94, color: 'var(--danger)' },
+              { name: 'Section 200–215', pct: 71, color: 'var(--warning)' },
+              { name: 'Field Level',     pct: 58, color: 'var(--warning)' },
+              { name: 'Upper Deck',      pct: 32, color: 'var(--success)' },
+            ].map(z => (
+              <div key={z.name} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ width: 150, fontSize: '0.75rem', color: 'var(--text-2)', flexShrink: 0 }}>{z.name}</span>
+                <div style={{ flex: 1, height: 6, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${z.pct}%`, background: z.color, borderRadius: 99 }} />
                 </div>
-              </Link>
-            );
-          })}
+                <span style={{ width: 36, fontSize: '0.75rem', color: z.color, textAlign: 'right', flexShrink: 0 }}>{z.pct}%</span>
+              </div>
+            ))}
+          </div>
         </div>
+      </section>
 
-        {/* ── Feature strip ─────────────────────────────────────────────────── */}
-        <div className="card" style={{ marginTop: '3rem', padding: '2rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
-          {[
-            { icon: Activity, color: '#3b82f6', title: 'Real-Time Density', body: 'Live crowd tracking across all zones with 30-second refresh cycles.' },
-            { icon: Clock, color: '#10b981', title: 'AI Wait Predictions', body: 'Gemini-powered predictions for concession and restroom wait times.' },
-            { icon: Map, color: '#f59e0b', title: 'Smart Navigation', body: 'Crowd-aware routing guides fans to the least congested amenities.' },
-            { icon: Zap, color: '#a78bfa', title: 'Instant Alerts', body: 'Push notifications for high-density zones, gate delays, and emergencies.' },
-          ].map(({ icon: Icon, color, title, body }) => (
-            <div key={title} style={{ display: 'flex', gap: '0.875rem' }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-                background: `${color}18`,
-                border: `1px solid ${color}33`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Icon size={16} color={color} />
+      {/* ── Social proof ─────────────────────────────────────────────────── */}
+      <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '1.5rem 1.5rem' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', flexShrink: 0 }}>Designed for operators at</p>
+          {LOGOS.map(l => (
+            <span key={l} style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-4)' }}>{l}</span>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Features ─────────────────────────────────────────────────────── */}
+      <section id="features" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <p className="label-xs" style={{ marginBottom: '0.75rem' }}>Features</p>
+          <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700, letterSpacing: '-0.03em' }}>
+            Everything your ops team needs
+          </h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1px', background: 'var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+          {FEATURES.map(({ icon: Icon, title, desc }) => (
+            <div key={title} style={{ background: 'var(--surface)', padding: '1.75rem', transition: 'background var(--t-fast)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
+            >
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--brand-bg)', border: '1px solid rgba(37,99,235,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+                <Icon size={17} color="var(--brand-light)" />
               </div>
-              <div>
-                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-1)', marginBottom: 4 }}>{title}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-3)', lineHeight: 1.55 }}>{body}</div>
-              </div>
+              <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-1)', marginBottom: '0.5rem' }}>{title}</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-2)', lineHeight: 1.6 }}>{desc}</p>
             </div>
           ))}
         </div>
-      </main>
+      </section>
+
+      {/* ── How it works ─────────────────────────────────────────────────── */}
+      <section id="how-it-works" style={{ borderTop: '1px solid var(--border)', padding: '5rem 1.5rem' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+            <p className="label-xs" style={{ marginBottom: '0.75rem' }}>How it works</p>
+            <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700, letterSpacing: '-0.03em' }}>Live in three steps</h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
+            {STEPS.map(({ n, title, desc }) => (
+              <div key={n} style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--brand-light)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0, paddingTop: '0.125rem' }}>{n}</div>
+                <div>
+                  <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-1)', marginBottom: '0.375rem' }}>{title}</h3>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-2)', lineHeight: 1.6 }}>{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing teaser ───────────────────────────────────────────────── */}
+      <section id="pricing" style={{ borderTop: '1px solid var(--border)', padding: '5rem 1.5rem' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+          <p className="label-xs" style={{ marginBottom: '0.75rem' }}>Pricing</p>
+          <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '1rem' }}>Start free, scale when you're ready</h2>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--text-2)', marginBottom: '2rem', lineHeight: 1.7 }}>
+            Free trial includes unlimited events, full simulation, and the guest PWA. No credit card required.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link href="/onboarding" className="btn-primary" style={{ padding: '0.625rem 1.5rem', fontSize: '0.9375rem', gap: '0.5rem' }}>
+              Start free trial <ArrowRight size={16} />
+            </Link>
+          </div>
+          <p style={{ marginTop: '1rem', fontSize: '0.8125rem', color: 'var(--text-3)' }}>
+            No credit card · Setup in 2 minutes · Cancel anytime
+          </p>
+        </div>
+      </section>
+
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '2rem 1.5rem' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Activity size={12} color="#fff" />
+            </div>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-2)' }}>VenueFlow</span>
+          </div>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-4)' }}>© {new Date().getFullYear()} VenueFlow Inc. All rights reserved.</p>
+          <div style={{ display: 'flex', gap: '1.25rem' }}>
+            {['Privacy', 'Terms', 'Docs', 'Status'].map(l => (
+              <a key={l} href="#" style={{ fontSize: '0.8125rem', color: 'var(--text-3)', textDecoration: 'none' }}>{l}</a>
+            ))}
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
