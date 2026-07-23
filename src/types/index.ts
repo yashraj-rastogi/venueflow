@@ -204,6 +204,8 @@ export interface VenueEvent {
   phaseStartedAt   ?: number;       // When current phase began
   actualAttendance ?: number;       // Set when event ends
   weatherRiskFactor?: number;       // 0–1 (heat/rain reduces fill rate)
+  description      ?: string;       // e.g. "Regular season championship match"
+  specialInstructions?: string;    // e.g. "Gates open at 5:00 PM. Clear bag policy in effect."
   createdAt         : number;
 }
 
@@ -226,6 +228,7 @@ export interface Incident {
 export interface GuestSession {
   id         : string;
   venueId    : string;
+  eventId   ?: string;   // links session to a specific event
   zoneId     : string;
   section   ?: string;
   seat      ?: string;

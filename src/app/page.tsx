@@ -68,6 +68,9 @@ export default function HomePage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link href="/checkin" className="btn-ghost" style={{ fontSize: '0.875rem', padding: '0.4rem 0.875rem', color: 'var(--brand-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <QrCode size={14} /> Guest Entry
+            </Link>
             <Link href="/login" className="btn-ghost" style={{ fontSize: '0.875rem', padding: '0.4rem 0.875rem' }}>Sign in</Link>
             <Link href="/onboarding" className="btn-primary" style={{ fontSize: '0.875rem', padding: '0.4rem 0.875rem' }}>Get started free</Link>
           </div>
@@ -92,6 +95,26 @@ export default function HomePage() {
         </p>
 
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link
+            href="/checkin"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'color-mix(in srgb, var(--brand-light) 12%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--brand-light) 35%, transparent)',
+              color: 'var(--brand-light)',
+              borderRadius: 10,
+              fontSize: '0.9375rem',
+              fontWeight: 600,
+              padding: '0.625rem 1.5rem',
+              textDecoration: 'none',
+              transition: 'all 0.15s ease',
+              boxShadow: '0 4px 14px color-mix(in srgb, var(--brand) 20%, transparent)',
+            }}
+          >
+            <QrCode size={18} /> Continue as Guest (Scan QR)
+          </Link>
           <Link href="/onboarding" className="btn-primary" style={{ fontSize: '0.9375rem', padding: '0.625rem 1.5rem', gap: '0.5rem' }}>
             Start free trial <ArrowRight size={16} />
           </Link>

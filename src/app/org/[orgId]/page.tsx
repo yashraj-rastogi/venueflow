@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Activity, AlertTriangle, ArrowRight, Eye, Globe, Loader2,
-  LogOut, MapPin, Plus, Shield, Users, Wifi, X, CheckCircle,
+  LogOut, MapPin, Plus, Shield, Trash2, Users, Wifi, X, CheckCircle,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getOrganization, getOrgVenues, getOpenIncidents } from '@/lib/firestore';
@@ -33,6 +33,10 @@ export default function OrgDashboard() {
   const [importMsg,    setImportMsg]    = useState('');
   const [importError,  setImportError]  = useState('');
 
+  // Delete venue state
+  const [deletingId,   setDeletingId]   = useState<string | null>(null);
+  const [deleteError,  setDeleteError]  = useState('');
+
   useEffect(() => { if (!authLoading && !user) router.push('/login'); }, [user, authLoading, router]);
 
   const loadVenues = async () => {
@@ -46,6 +50,27 @@ export default function OrgDashboard() {
       setVenues([SAMPLE_VENUES[0]]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteVenue = async (venueId: string, venueName: string) => {
+    if (!confirm(`Delete "${venueName}"?\nThis will permanently remove all crowd data, wait times, and notifications.\n\nThis action cannot be undone.`)) return;
+    setDeletingId(venueId);
+    setDeleteError('');
+    try {
+      const res = await fetch('/api/venues/delete', {
+        method : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({ orgId, venueId }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error ?? 'Delete failed');
+      // Optimistically remove from local state
+      setVenues(prev => prev.filter(v => v.id !== venueId));
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete venue');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -217,7 +242,33 @@ export default function OrgDashboard() {
                     <Link href={`/g/${venue.id}`} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: '0.8125rem', padding: '0.4375rem' }}>
                       <Eye size={13} /> Guest view
                     </Link>
+                    {venue.id !== 'metlife-stadium' && (
+                      <button
+                        onClick={() => handleDeleteVenue(venue.id, venue.name)}
+                        disabled={deletingId === venue.id}
+                        title="Delete venue"
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border)',
+                          borderRadius: 7,
+                          padding: '0.4375rem 0.625rem',
+                          cursor: deletingId === venue.id ? 'not-allowed' : 'pointer',
+                          color: deletingId === venue.id ? 'var(--text-4)' : 'var(--danger)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          opacity: deletingId === venue.id ? 0.5 : 1,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {deletingId === venue.id
+                          ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                          : <Trash2 size={13} />}
+                      </button>
+                    )}
                   </div>
+                  {deleteError && deletingId === null && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '0.5rem' }}>{deleteError}</p>
+                  )}
                 </div>
               </div>
             );

@@ -6,6 +6,8 @@
 import { ref, get, set } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { SAMPLE_VENUES } from '@/lib/sampleData';
+import { getVenueById } from '@/lib/firestore';
+import { Venue } from '@/types';
 
 /** Check if a path exists in RTDB */
 async function pathExists(path: string): Promise<boolean> {
@@ -21,13 +23,17 @@ async function pathExists(path: string): Promise<boolean> {
  * Ensure venue static data is seeded in RTDB.
  * Call this once per venue page load.
  */
-export async function ensureVenueSeeded(venueId: string): Promise<void> {
+export async function ensureVenueSeeded(venueId: string, customVenue?: Venue): Promise<void> {
   try {
     // Only seed if venue doesn't already exist in RTDB
     const exists = await pathExists(`venues/${venueId}`);
     if (exists) return;
 
-    const venue = SAMPLE_VENUES.find(v => v.id === venueId);
+    let venue = customVenue || SAMPLE_VENUES.find(v => v.id === venueId);
+    if (!venue) {
+      const fsVenue = await getVenueById(venueId);
+      if (fsVenue) venue = fsVenue;
+    }
     if (!venue) return;
 
     // Write venue metadata (static shape) — zones/amenities as objects

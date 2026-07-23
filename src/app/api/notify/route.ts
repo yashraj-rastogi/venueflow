@@ -75,3 +75,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/notify
+ * Body: { venueId: string, notifId?: string }
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const { venueId, notifId } = await req.json() as { venueId?: string; notifId?: string };
+    if (!venueId) {
+      return NextResponse.json({ ok: false, error: 'venueId is required' }, { status: 400 });
+    }
+
+    const { deletePath } = await import('@/lib/firebaseAdmin');
+
+    if (notifId) {
+      await deletePath(`notifications/${venueId}/${notifId}`);
+    } else {
+      await deletePath(`notifications/${venueId}`);
+    }
+
+    return NextResponse.json({ ok: true, message: notifId ? `Deleted notification ${notifId}` : `Cleared all notifications for venue ${venueId}` });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
+  }
+}

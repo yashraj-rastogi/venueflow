@@ -13,7 +13,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
   updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot,
   serverTimestamp, Timestamp, DocumentData, QueryConstraint,
-  writeBatch, arrayUnion,
+  writeBatch, arrayUnion, collectionGroup,
 } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 import {
@@ -57,6 +57,23 @@ export async function updateOrganization(orgId: string, data: Partial<Organizati
 export async function getOrgVenues(orgId: string): Promise<Venue[]> {
   const snaps = await getDocs(venuesCol(orgId));
   return snaps.docs.map(d => ({ id: d.id, ...d.data() }) as Venue);
+}
+
+export async function getVenueById(venueId: string): Promise<Venue | null> {
+  try {
+    const snaps = await getDocs(collectionGroup(db, 'venues'));
+    const docSnap = snaps.docs.find(d => d.id === venueId);
+    if (docSnap && docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as Venue;
+    }
+  } catch (err: unknown) {
+    // Quietly ignore permission restrictions on unauthenticated client-side collectionGroup queries
+    const code = (err as { code?: string })?.code;
+    if (code !== 'permission-denied' && code !== 'resource-exhausted') {
+      console.debug('[firestore] getVenueById fallback:', err);
+    }
+  }
+  return null;
 }
 
 export async function createVenueInOrg(orgId: string, venueData: Omit<Venue, 'id'>): Promise<string> {
@@ -168,3 +185,31 @@ export async function getCrowdHistory(venueId: string, limitN = 48): Promise<Doc
   const snaps = await getDocs(q);
   return snaps.docs.map(d => d.data());
 }
+
+// ── Event additional helpers ──────────────────────────────────────────────────
+
+export async function getLiveEvent(venueId: string): Promise<VenueEvent | null> {
+  const q = query(eventsCol(), where('venueId', '==', venueId), where('status', '==', 'live'), limit(1));
+  const snaps = await getDocs(q);
+  if (snaps.empty) return null;
+  return { id: snaps.docs[0].id, ...snaps.docs[0].data() } as VenueEvent;
+}
+
+export function subscribeToVenueEvents(
+  venueId: string,
+  callback: (events: VenueEvent[]) => void,
+): () => void {
+  const q = query(eventsCol(), where('venueId', '==', venueId));
+  return onSnapshot(q, snap => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }) as VenueEvent);
+    list.sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
+    callback(list);
+  });
+}
+
+// ── Guest session update helper ───────────────────────────────────────────────
+
+export async function updateGuestSession(sessionId: string, data: Partial<GuestSession>): Promise<void> {
+  await updateDoc(doc(db, 'guest_sessions', sessionId), data as DocumentData);
+}
+

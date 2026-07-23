@@ -1,11 +1,14 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { Activity, AlertTriangle, Bot, CheckCircle, Clock, Loader2, MapPin, Mic, MicOff, Navigation, Wifi, WifiOff } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Activity, AlertTriangle, Bot, CheckCircle, Clock, Loader2, LogOut, MapPin, Mic, MicOff, Navigation, Sparkles, Wifi, WifiOff } from 'lucide-react';
 import { useCrowdData, useNotifications, useVenueData } from '@/hooks/useRealtimeData';
 import { analyzeQuery } from '@/lib/gemini';
+import { subscribeToLiveEvent } from '@/lib/firestore';
+import { VenueEvent } from '@/types';
 import { fmtCount, fmtPct, fmtDensityColor } from '@/lib/formatters';
 import LiveRegion from '@/components/LiveRegion';
+import GuestTutorial from '@/components/GuestTutorial';
 import dynamic from 'next/dynamic';
 
 const VenueMap = dynamic(() => import('@/components/Map'), {
@@ -39,20 +42,49 @@ const QUICK_ASKS: Record<string, string[]> = {
 export default function GuestPWA() {
   const { venueId }    = useParams<{ venueId: string }>();
   const searchParams   = useSearchParams();
+  const router         = useRouter();
 
   const { venue }       = useVenueData(venueId);
   const { crowd }       = useCrowdData(venueId);
   const { notifications } = useNotifications(venueId);
 
-  const [lang,        setLang]        = useState(searchParams?.get('lang') ?? 'en');
-  const [tab,         setTab]         = useState<Tab>('live');
-  const [chatInput,   setChatInput]   = useState('');
-  const [messages,    setMessages]    = useState<ChatMsg[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [recording,   setRecording]   = useState(false);
-  const [online,      setOnline]      = useState(true);
-  const [emergency,   setEmergency]   = useState('');
-  const [lastUpdate,  setLastUpdate]  = useState(Date.now());
+  const [lang,          setLang]          = useState(searchParams?.get('lang') ?? 'en');
+  const [tab,           setTab]           = useState<Tab>('live');
+  const [chatInput,     setChatInput]     = useState('');
+  const [messages,      setMessages]      = useState<ChatMsg[]>([]);
+  const [chatLoading,   setChatLoading]   = useState(false);
+  const [recording,     setRecording]     = useState(false);
+  const [online,        setOnline]        = useState(true);
+  const [emergency,     setEmergency]     = useState('');
+  const [lastUpdate,    setLastUpdate]    = useState(Date.now());
+  const [activeEvent,   setActiveEvent]   = useState<VenueEvent | null>(null);
+  const [userCheckIn,   setUserCheckIn]   = useState<{ zoneId: string; section?: string; isStepFree?: boolean } | null>(null);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showTutorial,  setShowTutorial]  = useState(false);
+  const [leaving,       setLeaving]       = useState(false);
+
+  const handleLeaveVenue = async () => {
+    if (!confirm(`Are you leaving ${venue?.name ?? 'the venue'}?\n\nThis will update real-time egress numbers.`)) return;
+
+    setLeaving(true);
+    const sessionId = searchParams?.get('session') ?? undefined;
+    const currentZone = userCheckIn?.zoneId ?? searchParams?.get('zone') ?? 'zone-n';
+
+    try {
+      await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ venueId, zoneId: currentZone, sessionId }),
+      });
+    } catch (err) {
+      console.warn('Checkout failed:', err);
+    } finally {
+      router.push('/checkin');
+    }
+  };
+  const [selectedZone,  setSelectedZone]  = useState('');
+  const [stepFreePref,  setStepFreePref]  = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const mediaRef   = useRef<MediaRecorder | null>(null);
   const chunksRef  = useRef<Blob[]>([]);
@@ -64,6 +96,25 @@ export default function GuestPWA() {
   useEffect(() => { setMessages([{ role: 'ai', text: langConf.greeting }]); }, [lang]);
   useEffect(() => { setLastUpdate(Date.now()); }, [crowd]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { if (venueId) return subscribeToLiveEvent(venueId, setActiveEvent); }, [venueId]);
+
+  useEffect(() => {
+    if (!venueId) return;
+    const urlZone = searchParams?.get('zone');
+    const saved   = localStorage.getItem(`vf_checkin_${venueId}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setUserCheckIn(parsed);
+        if (parsed.zoneId) setSelectedZone(parsed.zoneId);
+      } catch {}
+    } else if (urlZone) {
+      const init = { zoneId: urlZone };
+      setUserCheckIn(init);
+      setSelectedZone(urlZone);
+    }
+  }, [venueId, searchParams]);
+
   useEffect(() => {
     const em = notifications.find(n => n.type === 'emergency' && !n.read);
     if (em) setEmergency(em.message);
@@ -73,6 +124,19 @@ export default function GuestPWA() {
     window.addEventListener('offline', off);
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
   }, [notifications]);
+
+  const handleJoinEvent = () => {
+    if (!selectedZone || !venueId) return;
+    const checkInData = { zoneId: selectedZone, isStepFree: stepFreePref };
+    setUserCheckIn(checkInData);
+    localStorage.setItem(`vf_checkin_${venueId}`, JSON.stringify(checkInData));
+    fetch('/api/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ venueId, zoneId: selectedZone, language: lang })
+    });
+    setShowJoinModal(false);
+  };
 
   const sendMessage = async (text = chatInput) => {
     const q = text.trim();
@@ -125,6 +189,29 @@ export default function GuestPWA() {
         </div>
       )}
 
+      {/* Active Live Event Banner */}
+      {activeEvent && (
+        <div style={{ background: 'var(--brand-bg)', borderBottom: '1px solid var(--brand-border)', padding: '0.625rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+              <span className="live-badge" style={{ fontSize: '0.65rem', padding: '0.15rem 0.375rem' }}><span className="live-dot" />LIVE EVENT</span>
+              <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--brand-light)' }}>{activeEvent.name}</span>
+            </div>
+            {userCheckIn ? (
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-3)', marginTop: 2 }}>
+                📍 Checked in: <strong>{venue?.zones.find(z => z.id === userCheckIn.zoneId)?.name ?? userCheckIn.zoneId}</strong>
+                {userCheckIn.isStepFree && <span style={{ color: 'var(--success)', marginLeft: 6 }}>♿ Step-Free</span>}
+              </p>
+            ) : (
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-3)', marginTop: 2 }}>Select your seat section to view custom line times</p>
+            )}
+          </div>
+          <button onClick={() => setShowJoinModal(true)} className="btn-primary" style={{ fontSize: '0.7rem', padding: '0.25rem 0.625rem', height: 'auto' }}>
+            {userCheckIn ? 'Change Seat' : '🎟️ Join Event'}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header style={{ padding: '0.875rem 1rem', background: 'var(--surface)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 30 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -134,7 +221,46 @@ export default function GuestPWA() {
             </div>
             <span style={{ fontWeight: 700, fontSize: '0.9375rem' }}>{venue?.name ?? 'VenueFlow'}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <button
+              onClick={() => setShowTutorial(true)}
+              title="View Tutorial"
+              style={{
+                background: 'color-mix(in srgb, var(--brand-light) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand-light) 25%, transparent)',
+                color: 'var(--brand-light)',
+                borderRadius: 7,
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                padding: '0.2rem 0.5rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <Sparkles size={11} /> Guide
+            </button>
+            <button
+              onClick={handleLeaveVenue}
+              disabled={leaving}
+              title="Leave Venue & Check out"
+              style={{
+                background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
+                color: 'var(--danger)',
+                borderRadius: 7,
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                padding: '0.2rem 0.5rem',
+                cursor: leaving ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              {leaving ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={11} />} Leave
+            </button>
             {!online && <WifiOff size={13} color="var(--danger)" aria-label="Offline" />}
             <select value={lang} onChange={e => setLang(e.target.value)} aria-label="Language" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-2)', borderRadius: 7, fontSize: '0.75rem', padding: '0.2rem 0.5rem', cursor: 'pointer' }}>
               {Object.entries(LANGS).map(([code, { label }]) => <option key={code} value={code}>{label}</option>)}
@@ -160,6 +286,47 @@ export default function GuestPWA() {
           </button>
         ))}
       </nav>
+
+      {/* Join Event Modal */}
+      {showJoinModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 380, color: 'var(--text-1)' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.25rem' }}>🎟️ Join Event Check-In</h2>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', marginBottom: '1.25rem' }}>
+              Select your seat section in <strong>{venue?.name}</strong> to get custom wait times and step-free directions.
+            </p>
+            
+            {activeEvent && (
+              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem' }}>
+                <p style={{ fontSize: '0.875rem', fontWeight: 700 }}>{activeEvent.name}</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 2 }}>{new Date(activeEvent.date).toLocaleDateString()} · {activeEvent.type.toUpperCase()}</p>
+              </div>
+            )}
+
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Select your seating zone</label>
+              <select value={selectedZone} onChange={e => setSelectedZone(e.target.value)} className="input-dark" style={{ width: '100%' }}>
+                <option value="">-- Choose your zone --</option>
+                {venue?.zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input type="checkbox" id="stepFree" checked={stepFreePref} onChange={e => setStepFreePref(e.target.checked)} style={{ cursor: 'pointer' }} />
+              <label htmlFor="stepFree" style={{ fontSize: '0.8125rem', color: 'var(--text-2)', cursor: 'pointer' }}>
+                ♿ Prefer step-free / elevator access routes
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => setShowJoinModal(false)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
+              <button onClick={handleJoinEvent} disabled={!selectedZone} className="btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: !selectedZone ? 0.5 : 1 }}>
+                Confirm &amp; Join
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -243,44 +410,63 @@ export default function GuestPWA() {
           </div>
         )}
 
-        {/* AI CHAT */}
+        {/* AI CHAT (Coming Soon View) */}
         {tab === 'chat' && (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {messages.map((m, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '80%', padding: '0.625rem 0.875rem', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? 'var(--brand)' : 'var(--surface-2)', border: m.role === 'ai' ? '1px solid var(--border)' : 'none', fontSize: '0.875rem', color: m.role === 'user' ? '#fff' : 'var(--text-2)', lineHeight: 1.5, direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
-                    {m.text === '…' ? (
-                      <span style={{ display: 'flex', gap: 3 }}>{[0, 0.2, 0.4].map((d, j) => <span key={j} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--text-3)', display: 'inline-block', animation: `live-pulse 1s ease-in-out ${d}s infinite` }} />)}</span>
-                    ) : m.text}
-                  </div>
-                </div>
-              ))}
-              <div ref={chatEndRef} />
+          <div style={{ padding: '2rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 340 }}>
+            <div style={{
+              width: 64,
+              height: 64,
+              borderRadius: 20,
+              background: 'color-mix(in srgb, var(--brand-light) 15%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--brand-light) 30%, transparent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.25rem',
+              boxShadow: '0 0 20px color-mix(in srgb, var(--brand-light) 20%, transparent)',
+            }}>
+              <Bot size={32} color="var(--brand-light)" />
             </div>
 
-            {/* Quick asks */}
-            {messages.length <= 2 && (
-              <div style={{ padding: '0 1rem 0.5rem', display: 'flex', gap: '0.375rem', overflowX: 'auto' }}>
-                {(QUICK_ASKS[lang] ?? QUICK_ASKS.en).map(s => (
-                  <button key={s} onClick={() => sendMessage(s)} style={{ whiteSpace: 'nowrap', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 99, padding: '0.3rem 0.75rem', fontSize: '0.75rem', color: 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}>{s}</button>
-                ))}
-              </div>
-            )}
+            <span className="chip" style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)', marginBottom: '0.75rem', fontSize: '0.75rem', fontWeight: 600 }}>
+              🚀 ROADMAP FEATURE • V2.0
+            </span>
 
-            {/* Input */}
-            <div style={{ padding: '0.75rem', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: '0.5rem' }}>
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} placeholder={langConf.placeholder} aria-label="Ask about the venue" style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 22, padding: '0.5rem 1rem', fontSize: '0.875rem', color: 'var(--text-1)', outline: 'none', direction: lang === 'ar' ? 'rtl' : 'ltr' }} />
-              <button onClick={recording ? () => mediaRef.current?.stop() : startVoice} disabled={chatLoading} aria-label={recording ? 'Stop recording' : 'Voice input'} aria-pressed={recording} style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid var(--border)', cursor: 'pointer', background: recording ? 'var(--danger-bg)' : 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {recording ? <MicOff size={15} color="var(--danger)" /> : <Mic size={15} color="var(--text-3)" />}
-              </button>
-              <button onClick={() => sendMessage()} disabled={!chatInput.trim() || chatLoading} aria-label="Send" style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', background: chatInput.trim() && !chatLoading ? 'var(--brand)' : 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.15s' }}>
-                <Navigation size={15} color={chatInput.trim() ? '#fff' : 'var(--text-4)'} />
-              </button>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: '0.375rem' }}>
+              AI Navigation Assistant
+            </h3>
+
+            <p style={{ fontSize: '0.84375rem', color: 'var(--text-3)', maxWidth: 320, lineHeight: 1.5, marginBottom: '1.5rem' }}>
+              Our venue-trained AI model is undergoing fine-tuning on real-time concourse telemetry and IoT crowd sensor data.
+            </p>
+
+            {/* Upcoming Capabilities */}
+            <div style={{ width: '100%', maxWidth: 340, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12, padding: '1rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Planned Copilot Capabilities:
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={14} color="var(--brand-light)" /> Venue-specific live crowd guidance
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={14} color="var(--brand-light)" /> Smart concession wait-time forecasting
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Navigation size={14} color="var(--brand-light)" /> Voice-guided step-free navigation
+              </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Tutorial Modal */}
+      <GuestTutorial
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+        onComplete={() => setShowTutorial(false)}
+        venueName={venue?.name}
+        eventName={activeEvent?.name}
+      />
 
       {/* Footer */}
       <footer style={{ padding: '0.5rem', background: 'var(--surface)', borderTop: '1px solid var(--border)', textAlign: 'center' }}>

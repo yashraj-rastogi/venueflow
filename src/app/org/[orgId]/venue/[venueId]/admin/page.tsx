@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Activity, AlertTriangle, ArrowLeft, Bell, Calendar, CheckCircle,
-  ChevronRight, Loader2, MapPin, Play, Plus, Send, Shield, Square, Users,
+  ChevronRight, Loader2, MapPin, Play, Plus, Send, Shield, Square, Trash2, Users,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCrowdData, useNotifications, useVenueData } from '@/hooks/useRealtimeData';
@@ -49,10 +49,34 @@ export default function PerVenueAdmin() {
   const [simRunning, setSimRunning] = useState(false);
   const [simLoading, setSimLoading] = useState(false);
   const [tab,        setTab]        = useState<Tab>('overview');
-  const [newEvent,   setNewEvent]   = useState({ name: '', type: 'nfl' as VenueEvent['type'], date: '', attendance: '' });
-  const [broadcast,  setBroadcast]  = useState({ section: 'all', message: '', type: 'info' as 'info' | 'warning' | 'emergency' });
+  const [newEvent,   setNewEvent]   = useState({ name: '', type: 'nfl' as VenueEvent['type'], date: '', attendance: '', description: '', specialInstructions: '' });
+  const [broadcast,  setBroadcast]  = useState({ title: '', section: 'all', message: '', type: 'info' as 'info' | 'warning' | 'emergency' });
   const [sent,       setSent]       = useState(false);
+  const [copiedQr,   setCopiedQr]   = useState(false);
   const [announcement, setAnnouncement] = useState('');
+
+  const sendBroadcast = async () => {
+    if (!broadcast.message) return;
+    await fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...broadcast, venueId }),
+    });
+    setSent(true);
+    setTimeout(() => setSent(false), 3000);
+    setBroadcast(b => ({ ...b, title: '', message: '' }));
+  };
+
+  const deleteNotification = async (notifId?: string) => {
+    if (notifId && !confirm('Delete this broadcast message?')) return;
+    if (!notifId && !confirm(`Clear all broadcast notifications for ${venue?.name ?? 'this venue'}?`)) return;
+
+    await fetch('/api/notify', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ venueId, notifId }),
+    });
+  };
 
   useEffect(() => { if (venueId) ensureVenueSeeded(venueId); }, [venueId]);
   useEffect(() => {
@@ -87,25 +111,73 @@ export default function PerVenueAdmin() {
     setAnnouncement(`Phase: ${EVENT_PHASES[next].label}`);
   };
 
+  const createUpcomingEvent = async () => {
+    if (!newEvent.name || !newEvent.date) return;
+    const eventId = await createEvent({
+      venueId, orgId, name: newEvent.name, type: newEvent.type,
+      date: new Date(newEvent.date).getTime(),
+      expectedAttendance: parseInt(newEvent.attendance) || (venue?.capacity ?? 50000),
+      description: newEvent.description,
+      specialInstructions: newEvent.specialInstructions,
+      status: 'upcoming', weatherRiskFactor: 0
+    });
+    const created: VenueEvent = {
+      id: eventId, venueId, orgId, name: newEvent.name, type: newEvent.type,
+      date: new Date(newEvent.date).getTime(),
+      expectedAttendance: parseInt(newEvent.attendance) || (venue?.capacity ?? 50000),
+      description: newEvent.description,
+      specialInstructions: newEvent.specialInstructions,
+      status: 'upcoming', weatherRiskFactor: 0, createdAt: Date.now()
+    };
+    setEvents(prev => [created, ...prev]);
+    setNewEvent({ name: '', type: 'nfl', date: '', attendance: '', description: '', specialInstructions: '' });
+    setAnnouncement(`Event "${created.name}" created.`);
+  };
+
   const goLive = async () => {
     if (!newEvent.name || !newEvent.date) return;
-    const eventId = await createEvent({ venueId, orgId, name: newEvent.name, type: newEvent.type, date: new Date(newEvent.date).getTime(), expectedAttendance: parseInt(newEvent.attendance) || (venue?.capacity ?? 50000), status: 'upcoming', weatherRiskFactor: 0 });
+    const eventId = await createEvent({
+      venueId, orgId, name: newEvent.name, type: newEvent.type,
+      date: new Date(newEvent.date).getTime(),
+      expectedAttendance: parseInt(newEvent.attendance) || (venue?.capacity ?? 50000),
+      description: newEvent.description,
+      specialInstructions: newEvent.specialInstructions,
+      status: 'upcoming', weatherRiskFactor: 0
+    });
     await updateEvent(eventId, { status: 'live' });
-    const created: VenueEvent = { id: eventId, venueId, orgId, name: newEvent.name, type: newEvent.type, date: new Date(newEvent.date).getTime(), expectedAttendance: parseInt(newEvent.attendance) || (venue?.capacity ?? 50000), status: 'live', weatherRiskFactor: 0, createdAt: Date.now() };
+    const created: VenueEvent = {
+      id: eventId, venueId, orgId, name: newEvent.name, type: newEvent.type,
+      date: new Date(newEvent.date).getTime(),
+      expectedAttendance: parseInt(newEvent.attendance) || (venue?.capacity ?? 50000),
+      description: newEvent.description,
+      specialInstructions: newEvent.specialInstructions,
+      status: 'live', weatherRiskFactor: 0, createdAt: Date.now()
+    };
     setLiveEvent(created);
     setEvents(prev => [created, ...prev]);
+    setNewEvent({ name: '', type: 'nfl', date: '', attendance: '', description: '', specialInstructions: '' });
     setTab('overview');
     await fetch(`/api/events/${eventId}/simulate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start', event: created, venueId }) });
     setSimRunning(true);
   };
 
-  const sendBroadcast = async () => {
-    if (!broadcast.message) return;
-    await fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...broadcast, venueId }) });
-    setSent(true);
-    setTimeout(() => setSent(false), 3000);
-    setBroadcast(b => ({ ...b, message: '' }));
+  const setEventStatus = async (ev: VenueEvent, newStatus: 'live' | 'ended' | 'upcoming') => {
+    await updateEvent(ev.id, { status: newStatus });
+    setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, status: newStatus } : newStatus === 'live' && e.status === 'live' ? { ...e, status: 'ended' } : e));
+    if (newStatus === 'live') {
+      const liveEv = { ...ev, status: 'live' as const };
+      setLiveEvent(liveEv);
+      fetch(`/api/events/${ev.id}/simulate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start', event: liveEv, venueId }) });
+      setSimRunning(true);
+      setAnnouncement(`Event "${ev.name}" is now Live.`);
+    } else if (newStatus === 'ended' && liveEvent?.id === ev.id) {
+      setLiveEvent(null);
+      setSimRunning(false);
+      setAnnouncement(`Event "${ev.name}" ended.`);
+    }
   };
+
+
 
   if (venueLoading) return <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="var(--brand-light)" style={{ animation: 'spin 1s linear infinite' }} /></div>;
 
@@ -136,6 +208,15 @@ export default function PerVenueAdmin() {
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '0.5rem' }}>
+          <Link
+            href={`/org/${orgId}/venue/${venueId}/events`}
+            className="nav-item"
+            style={{ textDecoration: 'none', color: 'var(--brand-light)', background: 'color-mix(in srgb, var(--brand) 12%, transparent)', marginBottom: '0.5rem' }}
+          >
+            <Calendar size={15} />
+            <span style={{ fontWeight: 600 }}>Events Hub & QR</span>
+          </Link>
+
           {NAV.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setTab(id)} className={`nav-item${tab === id ? ' active' : ''}`} aria-current={tab === id ? 'page' : undefined}>
               <Icon size={15} />
@@ -263,123 +344,324 @@ export default function PerVenueAdmin() {
 
         {/* ═ EVENTS ═════════════════════════════════════════════════════════ */}
         {tab === 'events' && (<>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '1.5rem' }}>Events</h1>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', marginBottom: '1.25rem' }}>
-            <h2 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem' }}>Create event</h2>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '1.5rem' }}>Events Management</h1>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem' }}>Create New Event</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.875rem' }}>
-              <input className="input-dark" placeholder="Event name" value={newEvent.name} onChange={e => setNewEvent(n => ({ ...n, name: e.target.value }))} style={{ gridColumn: '1/-1' }} />
+              <input className="input-dark" placeholder="Event Name (e.g. NY Giants vs Dallas Cowboys)" value={newEvent.name} onChange={e => setNewEvent(n => ({ ...n, name: e.target.value }))} style={{ gridColumn: '1/-1' }} />
               <select className="input-dark" value={newEvent.type} onChange={e => setNewEvent(n => ({ ...n, type: e.target.value as VenueEvent['type'] }))}>
-                {['nfl', 'nba', 'concert', 'soccer', 'other'].map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                <option value="nfl">🏈 NFL Football</option>
+                <option value="nba">🏀 NBA Basketball</option>
+                <option value="concert">🎤 Live Concert</option>
+                <option value="soccer">⚽ Soccer Match</option>
+                <option value="other">🏟️ Other Event</option>
               </select>
               <input type="datetime-local" className="input-dark" value={newEvent.date} onChange={e => setNewEvent(n => ({ ...n, date: e.target.value }))} />
-              <input className="input-dark" placeholder={`Expected attendance`} value={newEvent.attendance} onChange={e => setNewEvent(n => ({ ...n, attendance: e.target.value }))} style={{ gridColumn: '1/-1' }} />
+              <input className="input-dark" placeholder="Expected Attendance (e.g. 80000)" value={newEvent.attendance} onChange={e => setNewEvent(n => ({ ...n, attendance: e.target.value }))} />
+              <input className="input-dark" placeholder="Short Event Description (e.g. Regular Season Championship)" value={newEvent.description} onChange={e => setNewEvent(n => ({ ...n, description: e.target.value }))} />
+              <input className="input-dark" placeholder="Special Guest Instructions (e.g. Clear bag policy in effect)" value={newEvent.specialInstructions} onChange={e => setNewEvent(n => ({ ...n, specialInstructions: e.target.value }))} style={{ gridColumn: '1/-1' }} />
             </div>
-            <button onClick={goLive} disabled={!newEvent.name || !newEvent.date} className="btn-primary" style={{ gap: '0.375rem', opacity: !newEvent.name || !newEvent.date ? 0.5 : 1 }}>
-              <Play size={14} /> Create &amp; Go Live
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button onClick={createUpcomingEvent} disabled={!newEvent.name || !newEvent.date} className="btn-ghost" style={{ gap: '0.375rem', opacity: !newEvent.name || !newEvent.date ? 0.5 : 1 }}>
+                <Plus size={14} /> Save Upcoming Event
+              </button>
+              <button onClick={goLive} disabled={!newEvent.name || !newEvent.date} className="btn-primary" style={{ gap: '0.375rem', opacity: !newEvent.name || !newEvent.date ? 0.5 : 1 }}>
+                <Play size={14} /> Create &amp; Go Live Now
+              </button>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {events.map(ev => (
-              <div key={ev.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '0.875rem 1.125rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                <span className={`chip chip-${ev.status === 'live' ? 'green' : ev.status === 'upcoming' ? 'amber' : 'purple'}`}>{ev.status}</span>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{ev.name}</span>
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-3)', marginLeft: '0.75rem' }}>{new Date(ev.date).toLocaleString()}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {events.map(ev => {
+              const eventGuestUrl = typeof window !== 'undefined' ? `${window.location.origin}/g/${venueId}?eventId=${ev.id}` : `/g/${venueId}?eventId=${ev.id}`;
+              return (
+                <div key={ev.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className={`chip chip-${ev.status === 'live' ? 'green' : ev.status === 'upcoming' ? 'amber' : 'purple'}`}>
+                        {ev.status === 'live' ? '● LIVE' : ev.status.toUpperCase()}
+                      </span>
+                      <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{ev.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.375rem' }}>
+                      {ev.status !== 'live' && ev.status !== 'ended' && (
+                        <button onClick={() => setEventStatus(ev, 'live')} className="btn-primary" style={{ fontSize: '0.75rem', padding: '0.25rem 0.625rem', gap: '0.25rem' }}>
+                          <Play size={12} /> Set Live
+                        </button>
+                      )}
+                      {ev.status === 'live' && (
+                        <button onClick={() => setEventStatus(ev, 'ended')} className="btn-ghost" style={{ fontSize: '0.75rem', padding: '0.25rem 0.625rem', color: 'var(--danger)' }}>
+                          End Event
+                        </button>
+                      )}
+                      <button onClick={() => { navigator.clipboard.writeText(eventGuestUrl); setAnnouncement('Event link copied'); }} className="btn-ghost" style={{ fontSize: '0.75rem', padding: '0.25rem 0.625rem' }}>
+                        Copy Join Link
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8125rem', color: 'var(--text-3)' }}>
+                    <span>📅 {new Date(ev.date).toLocaleString()}</span>
+                    <span>👥 {ev.expectedAttendance.toLocaleString()} expected</span>
+                    <span>🏷️ {ev.type.toUpperCase()}</span>
+                  </div>
+                  {ev.specialInstructions && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--brand-light)', background: 'var(--surface-2)', padding: '0.375rem 0.625rem', borderRadius: 6 }}>
+                      ℹ️ {ev.specialInstructions}
+                    </p>
+                  )}
                 </div>
-                {ev.status === 'live' && (
-                  <button onClick={advancePhase} className="btn-ghost" style={{ fontSize: '0.8125rem', gap: '0.25rem', padding: '0.375rem 0.75rem' }}>
-                    <ChevronRight size={13} /> Next phase
-                  </button>
-                )}
-              </div>
-            ))}
-            {events.length === 0 && <p style={{ color: 'var(--text-3)', fontSize: '0.875rem' }}>No events yet.</p>}
+              );
+            })}
+            {events.length === 0 && <p style={{ color: 'var(--text-3)', fontSize: '0.875rem' }}>No events created yet.</p>}
           </div>
         </>)}
 
-        {/* ═ INCIDENTS ══════════════════════════════════════════════════════ */}
+        {/* ═ INCIDENTS (Coming Soon View) ═══════════════════════════════════ */}
         {tab === 'incidents' && (<>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '1.5rem' }}>Incidents</h1>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {incidents.map(inc => (
-              <div key={inc.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '0.875rem 1.125rem', borderLeft: `3px solid ${SEVERITY_COLORS[inc.severity] ?? 'var(--border)'}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
-                      <span className={`chip chip-${inc.severity === 'critical' ? 'red' : inc.severity === 'high' ? 'amber' : 'blue'}`}>{inc.severity}</span>
-                      <span className="chip">{inc.type}</span>
-                    </div>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-1)', marginBottom: '0.25rem' }}>{inc.description}</p>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{new Date(inc.reportedAt).toLocaleTimeString()} · {inc.status}</p>
-                  </div>
-                  {inc.status !== 'resolved' && (
-                    <button onClick={() => resolveIncident(inc.id)} className="btn-ghost" style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem', gap: '0.25rem', flexShrink: 0 }}>
-                      <CheckCircle size={13} /> Resolve
-                    </button>
-                  )}
-                </div>
+          <div style={{ padding: '3rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 380, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16 }}>
+            <div style={{
+              width: 64,
+              height: 64,
+              borderRadius: 20,
+              background: 'color-mix(in srgb, var(--warning) 15%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--warning) 30%, transparent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.25rem',
+              boxShadow: '0 0 20px color-mix(in srgb, var(--warning) 20%, transparent)',
+            }}>
+              <AlertTriangle size={32} color="var(--warning)" />
+            </div>
+
+            <span className="chip" style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)', marginBottom: '0.75rem', fontSize: '0.75rem', fontWeight: 600 }}>
+              🚀 ROADMAP FEATURE • V2.0
+            </span>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: '0.375rem' }}>
+              Automated Incident & Safety Dispatch
+            </h3>
+
+            <p style={{ fontSize: '0.84375rem', color: 'var(--text-3)', maxWidth: 400, lineHeight: 1.5, marginBottom: '1.5rem' }}>
+              We are expanding the DIM-ICE safety engine to support multi-agency staff dispatching, live GPS responder tracking, and automated overcrowding containment.
+            </p>
+
+            {/* Planned Capabilities */}
+            <div style={{ width: '100%', maxWidth: 420, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12, padding: '1rem 1.25rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Planned Incident Engine Capabilities:
               </div>
-            ))}
-            {incidents.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-3)' }}>
-                <CheckCircle size={32} color="var(--success)" style={{ margin: '0 auto 0.75rem', opacity: 0.6 }} />
-                <p style={{ fontSize: '0.875rem' }}>No incidents. All clear.</p>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Shield size={14} color="var(--warning)" /> Live staff GPS dispatching & task assignment
               </div>
-            )}
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={14} color="var(--danger)" /> Automated medical & overcrowding alert routing
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle size={14} color="var(--success)" /> Post-event safety compliance & audit logs
+              </div>
+            </div>
           </div>
         </>)}
 
         {/* ═ BROADCAST ══════════════════════════════════════════════════════ */}
         {tab === 'broadcast' && (<>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '1.5rem' }}>Broadcast</h1>
-          <div style={{ maxWidth: 520, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.5rem' }}>
-            <div style={{ marginBottom: '1rem' }}>
-              <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Type</label>
-              <div style={{ display: 'flex', gap: '0.375rem' }}>
-                {(['info', 'warning', 'emergency'] as const).map(t => (
-                  <button key={t} onClick={() => setBroadcast(b => ({ ...b, type: t }))} className={broadcast.type === t ? 'btn-primary' : 'btn-ghost'} style={{ fontSize: '0.8125rem', padding: '0.375rem 0.875rem' }}>{t}</button>
-                ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: 2 }}>
+                Live Guest Broadcast Manager
+              </h1>
+              <p style={{ fontSize: '0.78125rem', color: 'var(--text-3)' }}>
+                Target live push announcements to guests in <strong>{venue?.name ?? venueId}</strong>.
+              </p>
+            </div>
+
+            {notifications.length > 0 && (
+              <button
+                onClick={() => deleteNotification()}
+                className="btn-ghost"
+                style={{ fontSize: '0.78125rem', padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'var(--danger-border, rgba(239, 68, 68, 0.3))' }}
+              >
+                <Trash2 size={13} /> Clear All Broadcasts
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+            {/* Form Column */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <h2 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-1)' }}>New Announcement</h2>
+
+              {/* Severity Type */}
+              <div>
+                <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Announcement Severity</label>
+                <div style={{ display: 'flex', gap: '0.375rem' }}>
+                  {(['info', 'warning', 'emergency'] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setBroadcast(b => ({ ...b, type: t }))}
+                      className={broadcast.type === t ? 'btn-primary' : 'btn-ghost'}
+                      style={{ flex: 1, fontSize: '0.75rem', padding: '0.4rem 0.5rem', textTransform: 'uppercase', justifyContent: 'center' }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Target Zone */}
+              <div>
+                <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Target Zone / Section</label>
+                <select className="input-dark" value={broadcast.section} onChange={e => setBroadcast(b => ({ ...b, section: e.target.value }))} style={{ width: '100%' }}>
+                  <option value="all">📢 All Zones & Conourses ({venue?.name})</option>
+                  {venue?.zones.map(z => <option key={z.id} value={z.id}>{z.name} (Cap: {z.capacity.toLocaleString()})</option>)}
+                </select>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Title (Optional)</label>
+                <input
+                  className="input-dark"
+                  placeholder="e.g. Concourse Heat Alert or Gate B Status"
+                  value={broadcast.title}
+                  onChange={e => setBroadcast(b => ({ ...b, title: e.target.value }))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Message Body *</label>
+                <textarea
+                  className="input-dark"
+                  rows={4}
+                  placeholder="Type official broadcast message to active guests..."
+                  value={broadcast.message}
+                  onChange={e => setBroadcast(b => ({ ...b, message: e.target.value }))}
+                  style={{ width: '100%', resize: 'vertical' }}
+                  required
+                />
+              </div>
+
+              <button onClick={sendBroadcast} disabled={!broadcast.message.trim()} className={sent ? 'btn-ghost' : 'btn-primary'} style={{ width: '100%', justifyContent: 'center', opacity: !broadcast.message.trim() ? 0.5 : 1 }}>
+                {sent ? <><CheckCircle size={15} /> Broadcast Sent!</> : <><Send size={15} /> Push Broadcast to Guests</>}
+              </button>
             </div>
-            <div style={{ marginBottom: '1rem' }}>
-              <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Target zone</label>
-              <select className="input-dark" value={broadcast.section} onChange={e => setBroadcast(b => ({ ...b, section: e.target.value }))}>
-                <option value="all">All zones</option>
-                {venue?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+
+            {/* Live Feed Column */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h2 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-1)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Bell size={16} color="var(--brand-light)" /> Active Venue Feed ({notifications.length})
+                </h2>
+              </div>
+
+              {notifications.length === 0 ? (
+                <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-3)', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <Bell size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.3 }} />
+                  <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-2)' }}>No active broadcasts</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-4)', marginTop: 4 }}>Sent announcements for {venue?.name} will appear here in real time.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: 420, overflowY: 'auto' }}>
+                  {notifications.map(n => {
+                    const isEmergency = n.type === 'emergency';
+                    const isWarning = n.type === 'warning';
+                    const badgeColor = isEmergency ? 'var(--danger)' : isWarning ? 'var(--warning)' : 'var(--brand-light)';
+
+                    return (
+                      <div
+                        key={n.id}
+                        style={{
+                          background: 'var(--surface-2)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 10,
+                          padding: '0.875rem 1rem',
+                          borderLeft: `4px solid ${badgeColor}`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: '0.75rem',
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: badgeColor, background: `color-mix(in srgb, ${badgeColor} 15%, transparent)`, padding: '0.15rem 0.4rem', borderRadius: 4, textTransform: 'uppercase' }}>
+                              {n.type}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>
+                              📍 {n.section === 'all' || !n.section ? 'All Zones' : venue?.zones.find(z => z.id === n.section)?.name ?? n.section}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-4)', marginLeft: 'auto' }}>
+                              {new Date(n.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          {n.title && <div style={{ fontSize: '0.84375rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: 2 }}>{n.title}</div>}
+                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-2)', lineHeight: 1.4 }}>{n.message}</div>
+                        </div>
+
+                        <button
+                          onClick={() => deleteNotification(n.id)}
+                          title="Delete broadcast"
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: 2 }}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-4)')}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label className="label-xs" style={{ display: 'block', marginBottom: '0.5rem' }}>Message</label>
-              <textarea className="input-dark" rows={4} placeholder="Type your message to guests..." value={broadcast.message} onChange={e => setBroadcast(b => ({ ...b, message: e.target.value }))} style={{ resize: 'vertical' }} />
-            </div>
-            <button onClick={sendBroadcast} disabled={!broadcast.message} className={sent ? 'btn-ghost' : 'btn-primary'} style={{ gap: '0.375rem', opacity: !broadcast.message ? 0.5 : 1 }}>
-              {sent ? <><CheckCircle size={14} /> Sent</> : <><Send size={14} /> Send to guests</>}
-            </button>
           </div>
         </>)}
 
         {/* ═ GUEST QR ═══════════════════════════════════════════════════════ */}
         {tab === 'qr' && (<>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.375rem' }}>Guest QR Code</h1>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-3)', marginBottom: '2rem' }}>Display at your venue entrance. Guests scan to access live crowd info — no app required.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2rem', alignItems: 'start' }}>
-            <div style={{ background: '#fff', padding: '1.25rem', borderRadius: 12, display: 'inline-block' }}>
-              <QRCode value={guestQrUrl} size={180} />
-              <p style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.65rem', color: '#666', fontFamily: 'monospace', wordBreak: 'break-all' }}>{guestQrUrl}</p>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.375rem' }}>Guest Entrance &amp; Event QR Codes</h1>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-3)', marginBottom: '1.5rem' }}>Display at your stadium gates or print on event tickets. Guests scan to join the live event — no app download required.</p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+            {/* General Check-in QR */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', textAlign: 'center' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>1. Venue Entrance Gate QR</h3>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: '1rem' }}>General gate check-in URL</p>
+              <div style={{ background: '#fff', padding: '1rem', borderRadius: 10, display: 'inline-block', marginBottom: '1rem' }}>
+                <QRCode value={guestQrUrl} size={150} />
+              </div>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-4)', fontFamily: 'monospace', wordBreak: 'break-all', marginBottom: '0.75rem' }}>{guestQrUrl}</p>
+              <button onClick={() => { navigator.clipboard.writeText(guestQrUrl); setCopiedQr(true); setTimeout(() => setCopiedQr(false), 2000); }} className="btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: '0.75rem' }}>
+                {copiedQr ? '✓ Copied Gate URL' : 'Copy Gate Check-in URL'}
+              </button>
             </div>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem' }}>Guest experience includes</h3>
-              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {['Real-time zone crowd map', 'Wait times for all amenities', 'AI navigation in 6 languages', 'Emergency alerts (screen-reader accessible)', 'Step-free routing for wheelchair users'].map(f => (
-                  <li key={f} style={{ display: 'flex', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--text-2)', alignItems: 'flex-start' }}>
-                    <CheckCircle size={14} color="var(--success)" style={{ marginTop: 2, flexShrink: 0 }} /> {f}
-                  </li>
-                ))}
-              </ul>
-              <a href={guestQrUrl} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ marginTop: '1.25rem', display: 'inline-flex', gap: '0.375rem', textDecoration: 'none', fontSize: '0.875rem' }}>
-                <Users size={14} /> Preview guest view
-              </a>
+
+            {/* Active Live Event QR */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', textAlign: 'center' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>2. Live Event Guest Join QR</h3>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: '1rem' }}>
+                {liveEvent ? `Active: ${liveEvent.name}` : 'No active live event'}
+              </p>
+              {liveEvent ? (
+                <>
+                  <div style={{ background: '#fff', padding: '1rem', borderRadius: 10, display: 'inline-block', marginBottom: '1rem' }}>
+                    <QRCode value={typeof window !== 'undefined' ? `${window.location.origin}/g/${venueId}?eventId=${liveEvent.id}` : `/g/${venueId}?eventId=${liveEvent.id}`} size={150} />
+                  </div>
+                  <p style={{ fontSize: '0.65rem', color: 'var(--text-4)', fontFamily: 'monospace', wordBreak: 'break-all', marginBottom: '0.75rem' }}>
+                    {typeof window !== 'undefined' ? `${window.location.origin}/g/${venueId}?eventId=${liveEvent.id}` : `/g/${venueId}?eventId=${liveEvent.id}`}
+                  </p>
+                  <button onClick={() => { const link = `${window.location.origin}/g/${venueId}?eventId=${liveEvent.id}`; navigator.clipboard.writeText(link); setCopiedQr(true); setTimeout(() => setCopiedQr(false), 2000); }} className="btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: '0.75rem' }}>
+                    Copy Event Join Link
+                  </button>
+                </>
+              ) : (
+                <div style={{ padding: '2rem 1rem', color: 'var(--text-4)', fontSize: '0.8125rem' }}>
+                  Set an event to <strong>LIVE</strong> in the Events tab to generate a direct Event Join QR Code.
+                </div>
+              )}
             </div>
           </div>
         </>)}

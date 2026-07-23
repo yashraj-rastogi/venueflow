@@ -3,21 +3,39 @@ import { useEffect, useState, useCallback } from 'react';
 import { listenToPath, pushToPath } from '@/lib/firebase';
 import { CrowdSnapshot, Notification, Venue, Amenity } from '@/types';
 import { SAMPLE_CROWD_SNAPSHOT, SAMPLE_NOTIFICATIONS, SAMPLE_VENUES } from '@/lib/sampleData';
+import { getVenueById } from '@/lib/firestore';
+import { ensureVenueSeeded } from '@/lib/seedFirebase';
 
 // ─── Venue Data (from RTDB, seeded from sampleData) ───────────────────────────
 
 /**
  * Real-time venue hook — reads from `venues/{venueId}` in RTDB.
- * Falls back to sampleData if RTDB is unavailable or unseeded.
+ * Falls back to Firestore or sampleData if RTDB is unseeded.
  */
 export function useVenueData(venueId: string) {
-  const fallback = SAMPLE_VENUES.find(v => v.id === venueId) ?? SAMPLE_VENUES[0];
+  const fallback = SAMPLE_VENUES.find(v => v.id === venueId) ?? {
+    ...SAMPLE_VENUES[0],
+    id: venueId,
+    name: venueId,
+  };
   const [venue, setVenue] = useState<Venue>(fallback);
   const [loading, setLoading] = useState(true);
   const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
     if (!venueId) return;
+    let isMounted = true;
+
+    // Fetch from Firestore if custom venue not in sample data
+    if (!SAMPLE_VENUES.some(v => v.id === venueId)) {
+      getVenueById(venueId).then(fsVenue => {
+        if (fsVenue && isMounted) {
+          setVenue(fsVenue);
+          ensureVenueSeeded(venueId, fsVenue);
+        }
+      });
+    }
+
     const unsub = listenToPath<{
       name: string;
       city: string;
@@ -67,23 +85,28 @@ export function useVenueData(venueId: string) {
             }))
           : fallback.sections;
 
-        setVenue({
-          id: venueId,
-          name: data.name ?? fallback.name,
-          city: data.city ?? fallback.city,
-          capacity: data.capacity ?? fallback.capacity,
-          lat: data.lat ?? fallback.lat,
-          lng: data.lng ?? fallback.lng,
-          imageUrl: data.imageUrl ?? fallback.imageUrl,
-          zones,
-          amenities,
-          sections,
-        });
-        setIsLive(true);
+        if (isMounted) {
+          setVenue({
+            id: venueId,
+            name: data.name ?? fallback.name,
+            city: data.city ?? fallback.city,
+            capacity: data.capacity ?? fallback.capacity,
+            lat: data.lat ?? fallback.lat,
+            lng: data.lng ?? fallback.lng,
+            imageUrl: data.imageUrl ?? fallback.imageUrl,
+            zones,
+            amenities,
+            sections,
+          });
+          setIsLive(true);
+        }
       }
-      setLoading(false);
+      if (isMounted) setLoading(false);
     });
-    return unsub;
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, [venueId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { venue, loading, isLive };
@@ -117,13 +140,26 @@ export function useAllVenues() {
 
 // ─── Crowd Data ────────────────────────────────────────────────────────────────
 
+/** Build a zeroed CrowdSnapshot for a venue so new venues show 0 guests by default */
+function makeEmptyCrowd(venueId: string): CrowdSnapshot {
+  return { timestamp: Date.now(), venueId, totalCount: 0, zones: {} };
+}
+
 export function useCrowdData(venueId: string) {
-  const [crowd, setCrowd] = useState<CrowdSnapshot>(SAMPLE_CROWD_SNAPSHOT);
+  // Start with empty (zeroed) crowd — never leak MetLife sample data into other venues
+  const [crowd, setCrowd] = useState<CrowdSnapshot>(() =>
+    venueId === 'metlife-stadium' ? SAMPLE_CROWD_SNAPSHOT : makeEmptyCrowd(venueId)
+  );
   const [loading, setLoading] = useState(true);
   const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
     if (!venueId) return;
+    // Reset to empty state for the new venueId before subscribing
+    setCrowd(venueId === 'metlife-stadium' ? SAMPLE_CROWD_SNAPSHOT : makeEmptyCrowd(venueId));
+    setIsLive(false);
+    setLoading(true);
+
     const unsub = listenToPath<CrowdSnapshot>(`crowd_data/${venueId}`, (data) => {
       if (data) {
         setCrowd(data);
@@ -149,8 +185,12 @@ export function useCrowdData(venueId: string) {
 // ─── Wait Times ────────────────────────────────────────────────────────────────
 
 export function useWaitTimes(venueId: string) {
-  const fallbackVenue = SAMPLE_VENUES.find(v => v.id === venueId) ?? SAMPLE_VENUES[0];
-  const [amenities, setAmenities] = useState(fallbackVenue.amenities);
+  // Only use MetLife sample amenities for the demo venue; others start zeroed
+  const isSample = SAMPLE_VENUES.some(v => v.id === venueId);
+  const sampleAmenities = isSample
+    ? (SAMPLE_VENUES.find(v => v.id === venueId) ?? SAMPLE_VENUES[0]).amenities
+    : [];
+  const [amenities, setAmenities] = useState(sampleAmenities);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -160,17 +200,34 @@ export function useWaitTimes(venueId: string) {
       `wait_times/${venueId}`,
       (data) => {
         if (data) {
-          setAmenities(prev => prev.map(a => {
-            const live = data[a.id];
-            if (!live) return a;
-            return {
-              ...a,
-              waitTime: live.waitTime ?? a.waitTime,
-              predictedWaitTime: live.predictedWaitTime ?? a.predictedWaitTime,
-              trend: (live.trend as 'increasing' | 'stable' | 'decreasing') ?? a.trend,
-              isOpen: live.isOpen ?? a.isOpen,
-            };
-          }));
+          setAmenities(prev => {
+            // For known amenities: merge live wait data
+            if (prev.length > 0) {
+              return prev.map(a => {
+                const live = data[a.id];
+                if (!live) return a;
+                return {
+                  ...a,
+                  waitTime: live.waitTime ?? 0,
+                  predictedWaitTime: live.predictedWaitTime ?? 0,
+                  trend: (live.trend as 'increasing' | 'stable' | 'decreasing') ?? 'stable',
+                  isOpen: live.isOpen ?? true,
+                };
+              });
+            }
+            // For venues with no local amenity list yet (custom venues), build from RTDB
+            return Object.entries(data).map(([id, a]) => ({
+              id,
+              name: id,
+              type: 'concession' as const,
+              location: { lat: 0, lng: 0 },
+              section: '',
+              waitTime: a.waitTime ?? 0,
+              predictedWaitTime: a.predictedWaitTime ?? 0,
+              trend: (a.trend as 'increasing' | 'stable' | 'decreasing') ?? 'stable',
+              isOpen: a.isOpen ?? true,
+            }));
+          });
         }
         setLoading(false);
       }
@@ -184,7 +241,9 @@ export function useWaitTimes(venueId: string) {
 // ─── Notifications ─────────────────────────────────────────────────────────────
 
 export function useNotifications(venueId: string) {
-  const [notifications, setNotifications] = useState<Notification[]>(SAMPLE_NOTIFICATIONS);
+  const isSample = venueId === 'metlife-stadium';
+  const initial  = isSample ? SAMPLE_NOTIFICATIONS : [];
+  const [notifications, setNotifications] = useState<Notification[]>(initial);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -196,16 +255,13 @@ export function useNotifications(venueId: string) {
           const list = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
           setNotifications(list);
         } else {
-          // Seed sample notifications if none exist yet
-          SAMPLE_NOTIFICATIONS.forEach(n => {
-            pushToPath(`notifications/${venueId}`, n).catch(() => {});
-          });
+          setNotifications(isSample ? SAMPLE_NOTIFICATIONS : []);
         }
         setLoading(false);
       }
     );
     return unsub;
-  }, [venueId]);
+  }, [venueId, isSample]);
 
   const markAllRead = useCallback(() => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));

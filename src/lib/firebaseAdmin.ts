@@ -63,3 +63,32 @@ export async function adminCreateVenueInOrg(
     venueIds: FieldValue.arrayUnion(venueId),
   }, { merge: true });
 }
+
+export function deletePath(path: string): Promise<void> {
+  return adminDb.ref(path).remove();
+}
+
+/**
+ * Permanently deletes a venue from:
+ *  - Firestore:  organizations/{orgId}/venues/{venueId}
+ *  - Firestore:  org document venueIds array
+ *  - RTDB:       venues/{venueId}, crowd_data/{venueId}, wait_times/{venueId}, notifications/{venueId}
+ */
+export async function adminDeleteVenue(orgId: string, venueId: string): Promise<void> {
+  // 1. Remove Firestore venue doc
+  await adminFirestore.doc(`organizations/${orgId}/venues/${venueId}`).delete();
+
+  // 2. Remove venueId from org's venueIds array
+  await adminFirestore.doc(`organizations/${orgId}`).update({
+    venueIds: FieldValue.arrayRemove(venueId),
+  });
+
+  // 3. Clean up all RTDB paths for this venue
+  await Promise.all([
+    deletePath(`venues/${venueId}`),
+    deletePath(`crowd_data/${venueId}`),
+    deletePath(`wait_times/${venueId}`),
+    deletePath(`notifications/${venueId}`),
+    deletePath(`events/${venueId}`),
+  ]);
+}
