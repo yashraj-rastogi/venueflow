@@ -16,7 +16,7 @@ export function useVenueData(venueId: string) {
   const fallback = SAMPLE_VENUES.find(v => v.id === venueId) ?? {
     ...SAMPLE_VENUES[0],
     id: venueId,
-    name: venueId,
+    name: venueId.replace(/-/g, ' ').toUpperCase(),
   };
   const [venue, setVenue] = useState<Venue>(fallback);
   const [loading, setLoading] = useState(true);
@@ -26,16 +26,28 @@ export function useVenueData(venueId: string) {
     if (!venueId) return;
     let isMounted = true;
 
-    // Fetch from Firestore if custom venue not in sample data
+    // 1. Fetch from server API endpoint (bypasses Firestore client permissions)
+    fetch(`/api/venues?venueId=${encodeURIComponent(venueId)}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.ok && res.venue && isMounted) {
+          setVenue(res.venue);
+          setIsLive(true);
+        }
+      })
+      .catch(() => {});
+
+    // 2. Fetch from Firestore fallback if custom venue
     if (!SAMPLE_VENUES.some(v => v.id === venueId)) {
       getVenueById(venueId).then(fsVenue => {
         if (fsVenue && isMounted) {
           setVenue(fsVenue);
           ensureVenueSeeded(venueId, fsVenue);
         }
-      });
+      }).catch(() => {});
     }
 
+    // 3. Listen to Realtime Database
     const unsub = listenToPath<{
       name: string;
       city: string;
@@ -43,66 +55,99 @@ export function useVenueData(venueId: string) {
       lat: number;
       lng: number;
       imageUrl?: string;
-      zones?: Record<string, { name: string; capacity: number; coordinates: object[] }>;
-      amenities?: Record<string, { name: string; type: string; location: object; section: string; capacity?: number }>;
-      sections?: Record<string, { name: string; level: number; zones: string[] }>;
+      zones?: any;
+      amenities?: any;
+      sections?: any;
     }>(`venues/${venueId}`, (data) => {
-      if (data) {
-        // Rebuild Venue shape from RTDB record
-        const zones = data.zones
-          ? Object.entries(data.zones).map(([id, z]) => ({
-              id,
-              name: z.name,
-              capacity: z.capacity,
-              currentCount: 0, // populated by useCrowdData
-              density: 0,      // populated by useCrowdData
-              coordinates: (z.coordinates as { lat: number; lng: number }[]) ?? [],
-            }))
-          : fallback.zones;
+      if (data && isMounted) {
+        // Safely parse zones whether stored as array or object
+        let parsedZones = fallback.zones;
+        if (data.zones) {
+          if (Array.isArray(data.zones)) {
+            parsedZones = data.zones.map((z, idx) => ({
+              id: z.id || `zone-${idx}`,
+              name: z.name || `Zone ${idx + 1}`,
+              capacity: z.capacity || 10000,
+              currentCount: 0,
+              density: 0,
+              coordinates: z.coordinates || [],
+            }));
+          } else if (typeof data.zones === 'object') {
+            parsedZones = Object.entries(data.zones).map(([id, z]: [string, any]) => ({
+              id: z.id || id,
+              name: z.name || id,
+              capacity: z.capacity || 10000,
+              currentCount: 0,
+              density: 0,
+              coordinates: z.coordinates || [],
+            }));
+          }
+        }
 
-        const amenities: Amenity[] = data.amenities
-          ? Object.entries(data.amenities).map(([id, a]) => ({
-              id,
-              name: a.name,
-              type: a.type as Amenity['type'],
-              location: a.location as { lat: number; lng: number },
-              section: a.section,
+        // Safely parse amenities whether stored as array or object
+        let parsedAmenities: Amenity[] = fallback.amenities;
+        if (data.amenities) {
+          if (Array.isArray(data.amenities)) {
+            parsedAmenities = data.amenities.map((a, idx) => ({
+              id: a.id || `amenity-${idx}`,
+              name: a.name || `Amenity ${idx + 1}`,
+              type: (a.type as Amenity['type']) || 'concession',
+              location: a.location || { lat: data.lat || 0, lng: data.lng || 0 },
+              section: a.section || '',
               capacity: a.capacity,
-              // wait-time fields seeded via useWaitTimes
               waitTime: 0,
               predictedWaitTime: 0,
               trend: 'stable' as const,
               isOpen: true,
-            }))
-          : fallback.amenities;
-
-        const sections = data.sections
-          ? Object.entries(data.sections).map(([id, s]) => ({
-              id,
-              name: s.name,
-              level: s.level,
-              zones: s.zones ?? [],
-            }))
-          : fallback.sections;
-
-        if (isMounted) {
-          setVenue({
-            id: venueId,
-            name: data.name ?? fallback.name,
-            city: data.city ?? fallback.city,
-            capacity: data.capacity ?? fallback.capacity,
-            lat: data.lat ?? fallback.lat,
-            lng: data.lng ?? fallback.lng,
-            imageUrl: data.imageUrl ?? fallback.imageUrl,
-            zones,
-            amenities,
-            sections,
-          });
-          setIsLive(true);
+            }));
+          } else if (typeof data.amenities === 'object') {
+            parsedAmenities = Object.entries(data.amenities).map(([id, a]: [string, any]) => ({
+              id: a.id || id,
+              name: a.name || id,
+              type: (a.type as Amenity['type']) || 'concession',
+              location: a.location || { lat: data.lat || 0, lng: data.lng || 0 },
+              section: a.section || '',
+              capacity: a.capacity,
+              waitTime: 0,
+              predictedWaitTime: 0,
+              trend: 'stable' as const,
+              isOpen: true,
+            }));
+          }
         }
+
+        // Safely parse sections
+        let parsedSections = fallback.sections;
+        if (data.sections) {
+          if (Array.isArray(data.sections)) {
+            parsedSections = data.sections;
+          } else if (typeof data.sections === 'object') {
+            parsedSections = Object.entries(data.sections).map(([id, s]: [string, any]) => ({
+              id: s.id || id,
+              name: s.name || id,
+              level: s.level || 1,
+              zones: s.zones || [],
+            }));
+          }
+        }
+
+        setVenue(prev => ({
+          id: venueId,
+          name: data.name ?? prev.name,
+          city: data.city ?? prev.city,
+          capacity: data.capacity ?? prev.capacity,
+          lat: data.lat ?? prev.lat,
+          lng: data.lng ?? prev.lng,
+          imageUrl: data.imageUrl ?? prev.imageUrl,
+          zones: parsedZones.length > 0 ? parsedZones : prev.zones,
+          amenities: parsedAmenities.length > 0 ? parsedAmenities : prev.amenities,
+          sections: parsedSections.length > 0 ? parsedSections : prev.sections,
+        }));
+        setIsLive(true);
       }
       if (isMounted) setLoading(false);
     });
+
     return () => {
       isMounted = false;
       unsub();
@@ -112,27 +157,57 @@ export function useVenueData(venueId: string) {
   return { venue, loading, isLive };
 }
 
-// ─── All Venues List (for home page aggregate stats) ──────────────────────────
+// ─── All Venues List (for home page aggregate stats and checkin) ───────────────────
 
 export function useAllVenues() {
   const [venues, setVenues] = useState<Venue[]>(SAMPLE_VENUES);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen to each known venue in RTDB
-    const unsubs = SAMPLE_VENUES.map((sv, idx) =>
-      listenToPath<{ name: string; capacity: number; city: string }>(`venues/${sv.id}`, (data) => {
-        if (data) {
-          setVenues(prev => {
-            const next = [...prev];
-            next[idx] = { ...next[idx], name: data.name ?? sv.name, capacity: data.capacity ?? sv.capacity, city: data.city ?? sv.city };
-            return next;
-          });
+    let isMounted = true;
+
+    // 1. Fetch complete list of venues from server
+    fetch('/api/venues')
+      .then(r => r.json())
+      .then(res => {
+        if (res.ok && Array.isArray(res.venues) && isMounted) {
+          setVenues(res.venues);
+          setLoading(false);
         }
-        if (idx === SAMPLE_VENUES.length - 1) setLoading(false);
       })
-    );
-    return () => unsubs.forEach(u => u());
+      .catch(() => {});
+
+    // 2. Realtime listener for venues path
+    const unsub = listenToPath<Record<string, Partial<Venue>>>('venues', (data) => {
+      if (data && typeof data === 'object' && isMounted) {
+        setVenues(prev => {
+          const map = new Map<string, Venue>();
+          prev.forEach(v => map.set(v.id, v));
+          Object.entries(data).forEach(([id, v]) => {
+            const existing = map.get(id);
+            map.set(id, {
+              id,
+              name: v.name || existing?.name || id,
+              city: v.city || existing?.city || 'Location',
+              capacity: v.capacity || existing?.capacity || 50000,
+              lat: v.lat ?? existing?.lat ?? 0,
+              lng: v.lng ?? existing?.lng ?? 0,
+              zones: (v.zones ? (Array.isArray(v.zones) ? v.zones : Object.values(v.zones)) : existing?.zones) || [],
+              amenities: (v.amenities ? (Array.isArray(v.amenities) ? v.amenities : Object.values(v.amenities)) : existing?.amenities) || [],
+              sections: (v.sections ? (Array.isArray(v.sections) ? v.sections : Object.values(v.sections)) : existing?.sections) || [],
+              imageUrl: v.imageUrl || existing?.imageUrl,
+            } as Venue);
+          });
+          return Array.from(map.values());
+        });
+      }
+      if (isMounted) setLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, []);
 
   return { venues, loading };

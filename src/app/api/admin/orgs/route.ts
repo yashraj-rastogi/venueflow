@@ -69,7 +69,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Seed RTDB crowd structure
+    // 4. Seed RTDB venue metadata and crowd structure
+    const zonesObj: Record<string, object> = {
+      'zone-n': { id: 'zone-n', name: 'North Stand', capacity: Math.round((capacity || 25000) * 0.3) },
+      'zone-s': { id: 'zone-s', name: 'South Stand', capacity: Math.round((capacity || 25000) * 0.3) },
+      'zone-e': { id: 'zone-e', name: 'East Stand',  capacity: Math.round((capacity || 25000) * 0.2) },
+      'zone-w': { id: 'zone-w', name: 'West Stand',  capacity: Math.round((capacity || 25000) * 0.2) },
+    };
+
+    await adminDb.ref(`venues/${venueId}`).set({
+      name: venueName,
+      city: city || 'Default City',
+      capacity: Number(capacity) || 25000,
+      lat: 40.8135,
+      lng: -74.0745,
+      zones: zonesObj,
+    });
+
     await adminDb.ref(`crowd_data/${venueId}`).set({
       totalCount: 0,
       timestamp: now,

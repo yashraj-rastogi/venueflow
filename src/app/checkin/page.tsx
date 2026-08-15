@@ -24,34 +24,55 @@ export default function GuestVenueSelectorPage() {
   const [activeTab, setActiveTab] = useState<'select' | 'scan'>('select');
   const [loading, setLoading] = useState(true);
 
-  // Listen to RTDB venues to fetch all custom imported venues dynamically!
+  // Fetch all venues from server API and subscribe to RTDB updates dynamically
   useEffect(() => {
+    let isMounted = true;
+
+    // 1. Fetch from server API
+    fetch('/api/venues')
+      .then(r => r.json())
+      .then(res => {
+        if (res.ok && Array.isArray(res.venues) && isMounted) {
+          setVenues(res.venues);
+          setLoading(false);
+        }
+      })
+      .catch(() => {});
+
+    // 2. Listen to RTDB venues
     const unsub = listenToPath<Record<string, Partial<Venue>>>('venues', (data) => {
-      if (data && typeof data === 'object') {
-        const fetchedList: Venue[] = Object.entries(data).map(([id, v]) => ({
-          id,
-          name: v.name || id,
-          city: v.city || 'Location',
-          capacity: v.capacity || 50000,
-          lat: v.lat || 0,
-          lng: v.lng || 0,
-          zones: v.zones || [],
-          amenities: v.amenities || [],
-          sections: v.sections || [],
-          imageUrl: v.imageUrl,
-        }));
+      if (data && typeof data === 'object' && isMounted) {
+        setVenues(prev => {
+          const mergedMap = new Map<string, Venue>();
+          SAMPLE_VENUES.forEach(v => mergedMap.set(v.id, v));
+          prev.forEach(v => mergedMap.set(v.id, v));
 
-        // Merge with sample venues if not already present
-        const mergedMap = new Map<string, Venue>();
-        SAMPLE_VENUES.forEach(v => mergedMap.set(v.id, v));
-        fetchedList.forEach(v => mergedMap.set(v.id, v));
+          Object.entries(data).forEach(([id, v]) => {
+            const existing = mergedMap.get(id);
+            mergedMap.set(id, {
+              id,
+              name: v.name || existing?.name || id,
+              city: v.city || existing?.city || 'Location',
+              capacity: v.capacity || existing?.capacity || 50000,
+              lat: v.lat ?? existing?.lat ?? 0,
+              lng: v.lng ?? existing?.lng ?? 0,
+              zones: (v.zones ? (Array.isArray(v.zones) ? v.zones : Object.values(v.zones)) : existing?.zones) || [],
+              amenities: (v.amenities ? (Array.isArray(v.amenities) ? v.amenities : Object.values(v.amenities)) : existing?.amenities) || [],
+              sections: (v.sections ? (Array.isArray(v.sections) ? v.sections : Object.values(v.sections)) : existing?.sections) || [],
+              imageUrl: v.imageUrl || existing?.imageUrl,
+            } as Venue);
+          });
 
-        setVenues(Array.from(mergedMap.values()));
+          return Array.from(mergedMap.values());
+        });
       }
-      setLoading(false);
+      if (isMounted) setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, []);
 
   const handleScanSubmit = (e: React.FormEvent) => {

@@ -91,8 +91,9 @@ export default function GuestPWA() {
   const chunksRef  = useRef<Blob[]>([]);
 
   const langConf = LANGS[lang] ?? LANGS.en;
-  const avgDensity = crowd ? Object.values(crowd.zones).reduce((s, z) => s + z.density, 0) / Math.max(Object.values(crowd.zones).length, 1) : 0;
-  const totalCount = crowd ? Object.values(crowd.zones).reduce((s, z) => s + z.count, 0) : 0;
+  const zonesList = crowd?.zones ? Object.values(crowd.zones) : [];
+  const avgDensity = zonesList.length > 0 ? zonesList.reduce((s, z) => s + (z?.density ?? 0), 0) / zonesList.length : 0;
+  const totalCount = crowd?.totalCount ?? (zonesList.length > 0 ? zonesList.reduce((s, z) => s + (z?.count ?? 0), 0) : 0);
 
   useEffect(() => { setMessages([{ role: 'ai', text: langConf.greeting }]); }, [lang]);
   useEffect(() => { setLastUpdate(Date.now()); }, [crowd]);

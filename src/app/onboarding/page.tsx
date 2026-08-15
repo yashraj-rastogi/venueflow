@@ -40,8 +40,22 @@ export default function OnboardingPage() {
     setLoading(true);
     setError('');
     try { await signInWithGoogle(); setStep('org'); }
-    catch { setError('Sign-in failed. Make sure pop-ups are allowed.'); }
+    catch { setError('Google popup was closed or unavailable. You can also use 1-Click Demo Admin below.'); }
     finally { setLoading(false); }
+  };
+
+  const handleDemoAuth = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { signInWithDemoAdmin } = await import('@/lib/firebase');
+      await signInWithDemoAdmin();
+      setStep('org');
+    } catch {
+      setError('Could not initialize demo session.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOrgSubmit = async () => {
@@ -135,9 +149,20 @@ export default function OnboardingPage() {
             {step === 'auth' && (
               <div>
                 <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.375rem' }}>Create your account</h2>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-3)', marginBottom: '1.75rem', lineHeight: 1.6 }}>
-                  Sign in with Google to get started. No credit card required.
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-3)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+                  Sign in to get started. No credit card required.
                 </p>
+
+                <button onClick={handleDemoAuth} disabled={loading} className="btn-glow" style={{
+                  width: '100%', padding: '0.625rem 1rem', marginBottom: '0.75rem',
+                  borderRadius: 8, cursor: loading ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem',
+                  fontSize: '0.9375rem', fontWeight: 700,
+                  opacity: loading ? 0.5 : 1,
+                }}>
+                  ⚡ 1-Click Demo Admin Sign-In
+                </button>
+
                 <button onClick={handleGoogleAuth} disabled={loading} style={{
                   width: '100%', padding: '0.625rem 1rem',
                   background: 'var(--surface-2)', border: '1px solid var(--border-hi)',

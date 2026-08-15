@@ -94,10 +94,12 @@ export default function VenueDashboardPage() {
     );
   }
 
-  const totalCount = Object.values(crowd.zones).reduce((s, z) => s + z.count, 0);
-  const avgDensity = Object.values(crowd.zones).reduce((s, z) => s + z.density, 0) / Object.values(crowd.zones).length;
-  const maxWait = Math.max(...venue.amenities.map(a => a.waitTime));
-  const openAmenities = venue.amenities.filter(a => a.isOpen).length;
+  const zoneList = crowd?.zones ? Object.values(crowd.zones) : [];
+  const totalCount = crowd?.totalCount ?? (zoneList.length > 0 ? zoneList.reduce((s, z) => s + (z?.count ?? 0), 0) : 0);
+  const avgDensity = zoneList.length > 0 ? zoneList.reduce((s, z) => s + (z?.density ?? 0), 0) / zoneList.length : 0;
+  const amenitiesList = venue?.amenities ?? [];
+  const maxWait = amenitiesList.length > 0 ? Math.max(...amenitiesList.map(a => a.waitTime ?? 0)) : 0;
+  const openAmenities = amenitiesList.filter(a => a.isOpen).length;
 
   const notifIcon: Record<string, React.ReactNode> = {
     warning:   <AlertTriangle size={14} color="var(--amber)" />,
@@ -681,7 +683,7 @@ export default function VenueDashboardPage() {
                 {/* AI Chat */}
                 <AIChat
                   venueName={venue.name}
-                  avgDensity={Object.values(crowd.zones).reduce((s, z) => s + z.density, 0) / Object.values(crowd.zones).length}
+                  avgDensity={avgDensity}
                 />
               </div>
             </div>

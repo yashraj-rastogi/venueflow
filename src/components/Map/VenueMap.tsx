@@ -129,12 +129,12 @@ export default function VenueMap({ venue, crowd }: Props) {
       />
 
       {/* ─── Zone density circles (meter-based, zoom-aware) ─────────────────── */}
-      {venue.zones.map((zone, i) => {
-        const zoneData = crowd.zones[zone.id];
+      {(venue.zones || []).map((zone, i) => {
+        const zoneData = crowd?.zones?.[zone.id];
         const density  = zoneData?.density ?? zone.density ?? 0.3;
         const count    = zoneData?.count    ?? zone.currentCount ?? 0;
         const color    = getDensityColor(density);
-        const [zLat, zLng] = zoneCenter(zone, vLat, vLng, i, venue.zones.length);
+        const [zLat, zLng] = zoneCenter(zone, vLat, vLng, i, (venue.zones || []).length);
 
         return (
           <Circle
@@ -151,15 +151,15 @@ export default function VenueMap({ venue, crowd }: Props) {
           >
             <Tooltip permanent direction="center" className="leaflet-zone-label">
               <span style={{ color, fontWeight: 700, fontSize: 11, textShadow: '0 0 4px #000' }}>
-                {zone.name.split(' ')[0]}<br />{formatPercent(density)}
+                {(zone.name || 'Zone').split(' ')[0]}<br />{formatPercent(density)}
               </span>
             </Tooltip>
             <Popup>
               <div style={{ background: '#161b2b', color: '#dee1f7', padding: 10, borderRadius: 8, minWidth: 170 }}>
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>{zone.name}</div>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>{zone.name || 'Zone'}</div>
                 <div style={{ color, fontSize: 22, fontWeight: 800 }}>{formatPercent(density)}</div>
                 <div style={{ color: '#8d90a0', fontSize: 12, marginTop: 2 }}>
-                  {count.toLocaleString()} / {zone.capacity.toLocaleString()} guests
+                  {count.toLocaleString()} / {(zone.capacity || 10000).toLocaleString()} guests
                 </div>
                 {zone.isStepFree && (
                   <div style={{ color: '#10B981', fontSize: 11, marginTop: 4 }}>♿ Step-free access</div>
@@ -171,7 +171,7 @@ export default function VenueMap({ venue, crowd }: Props) {
       })}
 
       {/* ─── Amenity markers ──────────────────────────────────────────────────── */}
-      {venue.amenities
+      {(venue.amenities || [])
         .filter(a => a.location && (Math.abs(a.location.lat - vLat) > 0.00001 || Math.abs(a.location.lng - vLng) > 0.00001))
         .map(amenity => (
           <Marker

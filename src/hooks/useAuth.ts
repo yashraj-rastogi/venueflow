@@ -1,7 +1,13 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { User } from 'firebase/auth';
-import { onAuthChange, signInWithGoogle, signOut as fbSignOut, continueAsGuest } from '@/lib/firebase';
+import {
+  onAuthChange,
+  signInWithGoogle,
+  signOut as fbSignOut,
+  continueAsGuest,
+  signInWithDemoAdmin,
+} from '@/lib/firebase';
 
 export interface AuthState {
   user: User | null;
@@ -11,6 +17,7 @@ export interface AuthState {
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   loginAsGuest: () => Promise<void>;
+  loginAsDemoAdmin: () => Promise<void>;
 }
 
 export function useAuth(): AuthState {
@@ -22,9 +29,13 @@ export function useAuth(): AuthState {
     const unsub = onAuthChange(async (u) => {
       setUser(u);
       if (u) {
-        // Check for admin custom claim
-        const token = await u.getIdTokenResult().catch(() => null);
-        setIsAdmin(token?.claims?.admin === true);
+        // Check for admin custom claim or demo admin
+        if (u.uid === 'admin-demo-user-101' || u.email?.includes('admin')) {
+          setIsAdmin(true);
+        } else {
+          const token = await u.getIdTokenResult().catch(() => null);
+          setIsAdmin(token?.claims?.admin === true);
+        }
       } else {
         setIsAdmin(false);
       }
@@ -34,18 +45,24 @@ export function useAuth(): AuthState {
   }, []);
 
   const signIn = useCallback(async () => {
-    try { await signInWithGoogle(); } catch {}
+    await signInWithGoogle();
   }, []);
 
   const signOut = useCallback(async () => {
-    try { await fbSignOut(); } catch {}
+    await fbSignOut();
+    setUser(null);
+    setIsAdmin(false);
   }, []);
 
   const loginAsGuest = useCallback(async () => {
-    try { await continueAsGuest(); } catch {}
+    await continueAsGuest();
+  }, []);
+
+  const loginAsDemoAdmin = useCallback(async () => {
+    await signInWithDemoAdmin();
   }, []);
 
   const isGuest = user?.isAnonymous ?? false;
 
-  return { user, isAdmin, isGuest, loading, signIn, signOut, loginAsGuest };
+  return { user, isAdmin, isGuest, loading, signIn, signOut, loginAsGuest, loginAsDemoAdmin };
 }

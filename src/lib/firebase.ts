@@ -36,14 +36,128 @@ const googleProvider = new GoogleAuthProvider();
 
 export { app, auth, db, googleProvider };
 
+// ─── Demo User Object Factory ──────────────────────────────────────────────────
+
+export const DEMO_ADMIN_USER: User = {
+  uid: 'admin-demo-user-101',
+  email: 'admin@venueflow.io',
+  displayName: 'Admin (Yashraj Rastogi)',
+  emailVerified: true,
+  isAnonymous: false,
+  phoneNumber: null,
+  photoURL: null,
+  providerId: 'google.com',
+  tenantId: null,
+  metadata: {
+    creationTime: new Date().toISOString(),
+    lastSignInTime: new Date().toISOString(),
+  },
+  providerData: [],
+  refreshToken: '',
+  delete: async () => {},
+  getIdToken: async () => 'demo-token-xyz',
+  getIdTokenResult: async () => ({
+    token: 'demo-token-xyz',
+    authTime: new Date().toISOString(),
+    issuedAtTime: new Date().toISOString(),
+    expirationTime: new Date(Date.now() + 3600000).toISOString(),
+    signInProvider: 'google.com',
+    signInSecondFactor: null,
+    claims: { admin: true },
+  }),
+  reload: async () => {},
+  toJSON: () => ({}),
+};
+
+// Listeners for custom demo auth state updates
+const demoAuthListeners = new Set<(user: User | null) => void>();
+
+function notifyDemoAuth(u: User | null) {
+  demoAuthListeners.forEach(fn => fn(u));
+}
+
 // ─── Auth helpers ──────────────────────────────────────────────────────────────
 
-export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
-export const continueAsGuest = () => signInAnonymously(auth);
-export const signOut = () => firebaseSignOut(auth);
+export const signInWithGoogle = async () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('vf_demo_auth');
+  }
+  return signInWithPopup(auth, googleProvider);
+};
+
+export const continueAsGuest = async () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('vf_demo_auth');
+  }
+  try {
+    return await signInAnonymously(auth);
+  } catch {
+    // If anonymous auth is disabled in Firebase console, provide a fallback guest user
+    const guestUser: User = {
+      ...DEMO_ADMIN_USER,
+      uid: `guest-${Date.now()}`,
+      email: null,
+      displayName: 'Guest Attendee',
+      isAnonymous: true,
+    };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vf_demo_auth', JSON.stringify(guestUser));
+    }
+    notifyDemoAuth(guestUser);
+    return { user: guestUser };
+  }
+};
+
+export const signInWithDemoAdmin = async () => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('vf_demo_auth', JSON.stringify(DEMO_ADMIN_USER));
+  }
+  notifyDemoAuth(DEMO_ADMIN_USER);
+  return DEMO_ADMIN_USER;
+};
+
+export const signOut = async () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('vf_demo_auth');
+  }
+  notifyDemoAuth(null);
+  return firebaseSignOut(auth).catch(() => {});
+};
 
 export function onAuthChange(callback: (user: User | null) => void) {
-  return onAuthStateChanged(auth, callback);
+  demoAuthListeners.add(callback);
+
+  // Check demo auth in localStorage
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('vf_demo_auth');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        callback({ ...DEMO_ADMIN_USER, ...parsed });
+      } catch {}
+    }
+  }
+
+  const unsub = onAuthStateChanged(auth, (u) => {
+    if (u) {
+      if (typeof window !== 'undefined') localStorage.removeItem('vf_demo_auth');
+      callback(u);
+    } else {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('vf_demo_auth') : null;
+      if (saved) {
+        try {
+          callback({ ...DEMO_ADMIN_USER, ...JSON.parse(saved) });
+          return;
+        } catch {}
+      }
+      callback(null);
+    }
+  });
+
+  return () => {
+    demoAuthListeners.delete(callback);
+    unsub();
+  };
 }
 
 // ─── Database helpers ──────────────────────────────────────────────────────────
@@ -52,6 +166,8 @@ export function listenToPath<T>(path: string, callback: (data: T | null) => void
   const dbRef = ref(db, path);
   onValue(dbRef, (snapshot) => {
     callback(snapshot.exists() ? (snapshot.val() as T) : null);
+  }, (err) => {
+    console.warn(`[RTDB listenToPath] Error at ${path}:`, err);
   });
   return () => off(dbRef);
 }

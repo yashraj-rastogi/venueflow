@@ -15,9 +15,9 @@ import { sanitizeInput, scrubOutput } from '@/lib/inputGuard';
 import { classifyQuery } from '@/lib/modelRouter';
 import { getCachedResponse, setCachedResponse, hashQuery } from '@/lib/cache';
 
-const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+const apiKey = (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
 
-const genAI = apiKey && apiKey.startsWith('AIzaSy') ? new GoogleGenerativeAI(apiKey) : null;
+const genAI = apiKey && apiKey.length > 10 ? new GoogleGenerativeAI(apiKey) : null;
 
 /** Get a Gemini model instance by name */
 function getModel(modelName: string) {

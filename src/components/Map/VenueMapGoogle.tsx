@@ -87,12 +87,12 @@ function VenueMapInner({ venue, crowd }: { venue: Venue; crowd: CrowdSnapshot })
       />
 
       {/* ── Zone density circles ───────────────────────────────────────────── */}
-      {venue.zones.map((zone, i) => {
-        const zoneData = crowd.zones[zone.id];
+      {(venue.zones || []).map((zone, i) => {
+        const zoneData = crowd?.zones?.[zone.id];
         const density  = zoneData?.density ?? zone.density ?? 0;
         const count    = zoneData?.count ?? zone.currentCount ?? 0;
         const color    = getDensityColor(density);
-        const center   = zoneCenter(zone, vLat, vLng, i, venue.zones.length);
+        const center   = zoneCenter(zone, vLat, vLng, i, (venue.zones || []).length);
         const isActive = activeZone === zone.id;
 
         return (
