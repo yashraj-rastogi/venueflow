@@ -274,6 +274,19 @@ export default function PerVenueAdmin() {
             </div>
           )}
 
+          {/* Quick Actions Strip (Phase 6c) */}
+          <div style={{ display: 'flex', gap: '0.625rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <button onClick={() => setTab('broadcast')} className="btn-glow" style={{ fontSize: '0.8125rem', padding: '0.5rem 0.875rem', height: 'auto', gap: 6 }}>
+              📢 Send Alert
+            </button>
+            <button onClick={() => setTab('events')} className="btn-glow" style={{ fontSize: '0.8125rem', padding: '0.5rem 0.875rem', height: 'auto', gap: 6 }}>
+              🎟️ Manage Events
+            </button>
+            <button onClick={() => setTab('qr')} className="btn-ghost" style={{ fontSize: '0.8125rem', padding: '0.5rem 0.875rem', height: 'auto', gap: 6 }}>
+              📱 Guest QR Code
+            </button>
+          </div>
+
           {/* KPI row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
             {[

@@ -1,5 +1,129 @@
 // ============ VenueFlow Core Types ============
 
+// ── Forward declarations needed by VenueComplex ─────────────────────────────
+export type PlanTier = 'starter' | 'pro' | 'enterprise';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VENUE COMPLEX — Multi-Concurrent-Event Architecture (v2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A physical building that hosts multiple concurrent events across distinct spaces.
+ * Examples: Bharat Mandap, convention centres, university campuses, airport terminals.
+ * A standard single-event stadium is modelled as a VenueComplex with one VenueSpace.
+ */
+export interface VenueComplex {
+  id               : string;    // e.g. "bharat-mandap"
+  name             : string;    // "Bharat Mandap Convention Centre"
+  city             : string;
+  address          : string;
+  totalCapacity    : number;
+  floors           : number;    // number of physical floors
+  lat              : number;
+  lng              : number;
+  /** Org ID of the facility manager (ITPO, venue owner). Has complex_admin role. */
+  complexAdminOrgId: string;
+  imageUrl        ?: string;
+  plan             : PlanTier;  // billing tier for the facility
+}
+
+/**
+ * A named physical area within a VenueComplex.
+ * Can be an exclusive event space (Hall A) or shared infrastructure (corridor, restroom block).
+ */
+export interface VenueSpace {
+  id             : string;    // e.g. "hall-a-floor1"
+  complexId      : string;
+  name           : string;    // "Hall A — Floor 1"
+  floor          : number;
+  capacity       : number;
+  /**
+   * If true, this space is shared infrastructure (corridor, restroom, food court).
+   * Shared spaces belong to no single event — all attendees can see their density.
+   */
+  isShared       : boolean;
+  coordinates    : LatLng[];  // floor plan polygon for indoor map
+  /** Set when a SpaceEvent goes live in this space; cleared when the event ends. */
+  currentEventId?: string;
+  amenities      : Amenity[];
+  isStepFree    ?: boolean;
+  imageUrl      ?: string;
+}
+
+/**
+ * An event hosted in a specific VenueSpace, owned by a specific Organisation.
+ * Multiple SpaceEvents can be live simultaneously in different spaces of the same complex.
+ */
+export interface SpaceEvent {
+  id                 : string;
+  complexId          : string;
+  spaceId            : string;
+  orgId              : string;
+  name               : string;
+  type               : 'conference' | 'concert' | 'expo' | 'summit' | 'workshop' | 'other';
+  date               : number;
+  status             : 'upcoming' | 'live' | 'ended';
+  expectedAttendance : number;
+  actualAttendance  ?: number;
+  currentPhaseId    ?: EventPhaseId;
+  /** Canonical check-in URL printed on QR codes at this space's entrance gate. */
+  checkinUrl         : string;   // /checkin/{complexId}/space/{spaceId}?event={id}
+  description       ?: string;
+  createdAt          : number;
+}
+
+// ── Realtime helper types (used in hooks) ────────────────────────────────────
+
+/** Live crowd data slice for a single VenueSpace, read from RTDB complex_crowd. */
+export interface SpaceCrowdSlice {
+  spaceId  : string;
+  eventId ?: string;
+  orgId   ?: string;
+  density  : number;   // 0–1
+  count    : number;
+  capacity : number;
+  status   : 'normal' | 'warning' | 'congested';
+  spaceName: string;
+}
+
+/** Live guest position tick, written to RTDB guest_positions on each QR scan. */
+export interface GuestPositionTick {
+  sessionId     : string;
+  spaceId       : string;
+  zoneId        : string;
+  floor         : number;
+  updatedAt     : number;
+  locationSource: 'qr' | 'manual';
+}
+
+// ── FCM Push & Analytics ─────────────────────────────────────────────────────
+
+/** FCM registration token for a staff member — stored under their venue's staff push_tokens sub-collection. */
+export interface StaffPushToken {
+  uid         : string;    // Firebase Auth UID
+  venueId     : string;
+  orgId       : string;
+  fcmToken    : string;    // FCM registration token
+  registeredAt: number;
+  deviceHint ?: string;   // e.g. "Android Chrome 126"
+}
+
+/**
+ * Periodic crowd analytics snapshot saved during a live event.
+ * Powers historical analytics dashboards and post-event reports.
+ */
+export interface AnalyticsSnapshot {
+  venueId     : string;
+  complexId  ?: string;    // set for complex events
+  eventId    ?: string;
+  timestamp   : number;
+  totalCount  : number;
+  peakZoneId  : string;
+  peakDensity : number;
+  avgWaitTime : number;    // average across all open amenities
+  zones       : Record<string, { density: number; count: number }>;
+}
+
 /** Climate and transit risk profile for a host-city venue */
 export interface VenueRiskProfile {
   /** e.g. ["wildfire_smoke", "extreme_heat", "seismic"] */
@@ -147,19 +271,21 @@ export function getDensityColor(density: number): string {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type StaffRole = 'viewer' | 'staff' | 'admin' | 'owner';
-export type PlanTier  = 'starter' | 'pro' | 'enterprise';
+// Note: PlanTier is declared at the top of this file (before VenueComplex) and is already exported.
 
 /** A venue operating company (customer of VenueFlow SaaS) */
 export interface Organization {
-  id         : string;
-  name       : string;
-  slug       : string;         // URL-safe identifier e.g. "nfl-giants"
-  plan       : PlanTier;
-  ownerEmail : string;
-  createdAt  : number;
-  venueIds   : string[];
-  logoUrl   ?: string;
-  domain    ?: string;         // e.g. "giants.com" for domain verification
+  id          : string;
+  name        : string;
+  slug        : string;         // URL-safe identifier e.g. "nfl-giants"
+  plan        : PlanTier;
+  ownerEmail  : string;
+  createdAt   : number;
+  venueIds    : string[];
+  /** IDs of VenueComplexes this org manages as a ComplexAdmin (facility owner). */
+  complexIds ?: string[];
+  logoUrl    ?: string;
+  domain     ?: string;         // e.g. "giants.com" for domain verification
 }
 
 /** Staff member scoped to a venue */
@@ -226,15 +352,31 @@ export interface Incident {
 
 /** Anonymous guest session created at QR check-in */
 export interface GuestSession {
-  id         : string;
-  venueId    : string;
-  eventId   ?: string;   // links session to a specific event
-  zoneId     : string;
-  section   ?: string;
-  seat      ?: string;
-  language   : string;
-  createdAt  : number;
-  lastSeenAt : number;
+  id              : string;
+  venueId         : string;
+  eventId        ?: string;            // links session to a specific VenueEvent
+  // ── Venue Complex fields (v2) ─────────────────────────────────────────────
+  /** Set when the guest checks in to a VenueComplex. Undefined for legacy single-venue sessions. */
+  complexId      ?: string;
+  /** The specific VenueSpace the guest is in (e.g. "hall-a-floor1"). */
+  spaceId        ?: string;
+  /** Floor number within the complex (0 = ground). */
+  floor          ?: number;
+  /** How the most recent location update was received. */
+  locationSource ?: 'qr' | 'manual';
+  // ── Standard fields ───────────────────────────────────────────────────────
+  zoneId          : string;
+  section        ?: string;
+  seat           ?: string;
+  language        : string;
+  createdAt       : number;
+  lastSeenAt      : number;
+  /**
+   * Privacy TTL — Unix ms timestamp after which this session should be auto-deleted.
+   * Set to createdAt + 86_400_000 (24 hours) on creation.
+   * Cloud Scheduler calls POST /api/sessions/cleanup every 6h to remove expired sessions.
+   */
+  expiresAt       : number;
 }
 
 /** Weather alert for a venue */

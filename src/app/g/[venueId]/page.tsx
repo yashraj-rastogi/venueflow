@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Activity, AlertTriangle, Bot, CheckCircle, Clock, Loader2, LogOut, MapPin, Mic, MicOff, Navigation, Sparkles, Wifi, WifiOff } from 'lucide-react';
+import { Activity, AlertTriangle, Bot, CheckCircle, Clock, Loader2, LogOut, MapPin, Navigation, Sparkles, Wifi, WifiOff } from 'lucide-react';
 import { useCrowdData, useNotifications, useVenueData } from '@/hooks/useRealtimeData';
 import { analyzeQuery } from '@/lib/gemini';
 import { subscribeToLiveEvent } from '@/lib/firestore';
@@ -9,6 +9,7 @@ import { VenueEvent } from '@/types';
 import { fmtCount, fmtPct, fmtDensityColor } from '@/lib/formatters';
 import LiveRegion from '@/components/LiveRegion';
 import GuestTutorial from '@/components/GuestTutorial';
+import AIChat from '@/components/AIChat';
 import dynamic from 'next/dynamic';
 
 const VenueMap = dynamic(() => import('@/components/Map'), {
@@ -410,52 +411,9 @@ export default function GuestPWA() {
           </div>
         )}
 
-        {/* AI CHAT (Coming Soon View) */}
+        {/* AI CHAT — wired to /api/chat via analyzeQuery */}
         {tab === 'chat' && (
-          <div style={{ padding: '2rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 340 }}>
-            <div style={{
-              width: 64,
-              height: 64,
-              borderRadius: 20,
-              background: 'color-mix(in srgb, var(--brand-light) 15%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--brand-light) 30%, transparent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '1.25rem',
-              boxShadow: '0 0 20px color-mix(in srgb, var(--brand-light) 20%, transparent)',
-            }}>
-              <Bot size={32} color="var(--brand-light)" />
-            </div>
-
-            <span className="chip" style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)', marginBottom: '0.75rem', fontSize: '0.75rem', fontWeight: 600 }}>
-              🚀 ROADMAP FEATURE • V2.0
-            </span>
-
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: '0.375rem' }}>
-              AI Navigation Assistant
-            </h3>
-
-            <p style={{ fontSize: '0.84375rem', color: 'var(--text-3)', maxWidth: 320, lineHeight: 1.5, marginBottom: '1.5rem' }}>
-              Our venue-trained AI model is undergoing fine-tuning on real-time concourse telemetry and IoT crowd sensor data.
-            </p>
-
-            {/* Upcoming Capabilities */}
-            <div style={{ width: '100%', maxWidth: 340, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12, padding: '1rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Planned Copilot Capabilities:
-              </div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Sparkles size={14} color="var(--brand-light)" /> Venue-specific live crowd guidance
-              </div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={14} color="var(--brand-light)" /> Smart concession wait-time forecasting
-              </div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Navigation size={14} color="var(--brand-light)" /> Voice-guided step-free navigation
-              </div>
-            </div>
-          </div>
+          <AIChat venueName={venue?.name ?? venueId} avgDensity={avgDensity} />
         )}
       </div>
 

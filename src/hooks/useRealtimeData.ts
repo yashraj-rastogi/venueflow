@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { listenToPath, pushToPath } from '@/lib/firebase';
-import { CrowdSnapshot, Notification, Venue, Amenity } from '@/types';
+import { CrowdSnapshot, Notification, Venue, Amenity, SpaceCrowdSlice, GuestPositionTick } from '@/types';
 import { SAMPLE_CROWD_SNAPSHOT, SAMPLE_NOTIFICATIONS, SAMPLE_VENUES } from '@/lib/sampleData';
 import { getVenueById } from '@/lib/firestore';
 import { ensureVenueSeeded } from '@/lib/seedFirebase';
@@ -270,4 +270,145 @@ export function useNotifications(venueId: string) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return { notifications, loading, unreadCount, markAllRead };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VENUE COMPLEX HOOKS (v2) — additive, do NOT change existing hooks above
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * useComplexCrowd — listens to RTDB `complex_crowd/{complexId}`.
+ * Returns the full building crowd: all spaces + shared corridors.
+ * Used by the ComplexAdmin overview dashboard.
+ */
+export function useComplexCrowd(complexId: string | null | undefined) {
+  const [data, setData] = useState<{
+    shared    : Record<string, SpaceCrowdSlice>;
+    spaces    : Record<string, SpaceCrowdSlice>;
+    totalCount: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!complexId) { setLoading(false); return; }
+    const unsub = listenToPath(`complex_crowd/${complexId}`, (val: unknown) => {
+      const raw = val as Record<string, unknown> | null;
+      setData({
+        shared    : (raw?.shared  as Record<string, SpaceCrowdSlice>) ?? {},
+        spaces    : (raw?.spaces  as Record<string, SpaceCrowdSlice>) ?? {},
+        totalCount: (raw?.totalCount as number) ?? 0,
+      });
+      setLoading(false);
+    });
+    return unsub;
+  }, [complexId]);
+
+  const isLive = data ? Object.values(data.spaces).some(s => s.count > 0) : false;
+
+  return { shared: data?.shared ?? {}, spaces: data?.spaces ?? {}, totalCount: data?.totalCount ?? 0, loading, isLive };
+}
+
+/**
+ * useSpaceCrowd — listens to a single RTDB space slot.
+ * Used by SpaceAdmin dashboard (sees ONLY their space, not neighbours).
+ */
+export function useSpaceCrowd(complexId: string | null | undefined, spaceId: string | null | undefined) {
+  const [crowd, setCrowd] = useState<SpaceCrowdSlice | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!complexId || !spaceId) { setLoading(false); return; }
+    const path = `complex_crowd/${complexId}/spaces/${spaceId}`;
+    const unsub = listenToPath(path, (val: unknown) => {
+      setCrowd(val as SpaceCrowdSlice | null);
+      setLoading(false);
+    });
+    return unsub;
+  }, [complexId, spaceId]);
+
+  return { crowd, loading };
+}
+
+/**
+ * useComplexNotifications — merges two RTDB paths:
+ *   `complex_notifications/{complexId}/broadcast_all`   (all-complex alerts)
+ *   `complex_notifications/{complexId}/spaces/{spaceId}` (space-specific alerts)
+ * Used by the Guest Complex PWA and SpaceAdmin dashboard.
+ */
+export function useComplexNotifications(complexId: string | null | undefined, spaceId: string | null | undefined) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!complexId) { setLoading(false); return; }
+
+    const broadcastMap: Record<string, Notification> = {};
+    const spaceMap    : Record<string, Notification> = {};
+
+    const merge = () => {
+      const all = Object.values({ ...broadcastMap, ...spaceMap })
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 50);
+      setNotifications(all);
+    };
+
+    // Listen to complex-wide broadcasts
+    const unsubBroadcast = listenToPath(
+      `complex_notifications/${complexId}/broadcast_all`,
+      (val: unknown) => {
+        const map = (val ?? {}) as Record<string, Notification>;
+        Object.assign(broadcastMap, map);
+        merge();
+        setLoading(false);
+      },
+    );
+
+    // Listen to space-scoped notifications (only if spaceId provided)
+    let unsubSpace: (() => void) | undefined;
+    if (spaceId) {
+      unsubSpace = listenToPath(
+        `complex_notifications/${complexId}/spaces/${spaceId}`,
+        (val: unknown) => {
+          const map = (val ?? {}) as Record<string, Notification>;
+          Object.assign(spaceMap, map);
+          merge();
+        },
+      );
+    } else {
+      setLoading(false);
+    }
+
+    return () => {
+      unsubBroadcast();
+      unsubSpace?.();
+    };
+  }, [complexId, spaceId]);
+
+  const markAllRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  return { notifications, loading, unreadCount, markAllRead };
+}
+
+/**
+ * useGuestPositions — listens to RTDB `guest_positions/{complexId}`.
+ * Returns a map of sessionId → GuestPositionTick for the ComplexAdmin heatmap.
+ */
+export function useGuestPositions(complexId: string | null | undefined) {
+  const [positions, setPositions] = useState<Record<string, GuestPositionTick>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!complexId) { setLoading(false); return; }
+    const unsub = listenToPath(`guest_positions/${complexId}`, (val: unknown) => {
+      setPositions((val ?? {}) as Record<string, GuestPositionTick>);
+      setLoading(false);
+    });
+    return unsub;
+  }, [complexId]);
+
+  return { positions, loading };
 }

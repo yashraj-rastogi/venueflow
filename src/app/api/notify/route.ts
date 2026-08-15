@@ -15,24 +15,21 @@ async function getPusher() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { venueId, section, message, type, title, userId } = body;
+    const { venueId, complexId, spaceId, section, message, type, title, userId } = body;
 
-    // ── Basic field validation ─────────────────────────────────────────────
-    if (!message || !venueId) {
+    // ── Basic field validation ────────────────────────────────────────────────────────────────
+    if (!message || (!venueId && !complexId)) {
       return NextResponse.json(
-        { ok: false, error: 'venueId and message are required' },
+        { ok: false, error: 'message and at least one of venueId/complexId are required' },
         { status: 400 },
       );
     }
 
-    if (typeof venueId !== 'string' || venueId.length > 60) {
-      return NextResponse.json(
-        { ok: false, error: 'Invalid venueId' },
-        { status: 400 },
-      );
+    if (venueId && (typeof venueId !== 'string' || venueId.length > 60)) {
+      return NextResponse.json({ ok: false, error: 'Invalid venueId' }, { status: 400 });
     }
 
-    // ── OWASP LLM01: Sanitize message against prompt injection ────────────
+    // ── OWASP LLM01: Sanitize message against prompt injection ──────────────────
     const { safe, blocked, reason } = sanitizeInput(message);
     if (blocked) {
       return NextResponse.json(
@@ -41,10 +38,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── OWASP LLM06: OpenFGA ReBAC authorization ──────────────────────────
-    // Only venue staff/admins may broadcast notifications.
+    // ── OWASP LLM06: OpenFGA ReBAC authorization ───────────────────────────────
     if (userId) {
-      const allowed = await checkPermission(userId, 'staff', 'venue', venueId);
+      let allowed = false;
+      if (complexId && !spaceId) {
+        // Complex-wide broadcast: requires complex_admin
+        allowed = await checkPermission(userId, 'complex_admin', 'complex', complexId);
+      } else if (complexId && spaceId) {
+        // Space-scoped broadcast: space_admin or complex_admin
+        allowed =
+          (await checkPermission(userId, 'space_admin', 'space', spaceId)) ||
+          (await checkPermission(userId, 'complex_admin', 'complex', complexId));
+      } else if (venueId) {
+        // Legacy venue broadcast: venue staff/admin
+        allowed = await checkPermission(userId, 'staff', 'venue', venueId);
+      }
+
       if (!allowed) {
         return NextResponse.json(
           { ok: false, error: 'Insufficient permissions to broadcast notifications' },
@@ -65,9 +74,59 @@ export async function POST(req: NextRequest) {
 
     try {
       const push = await getPusher();
-      await push(`notifications/${venueId}`, notification);
+
+      if (complexId && spaceId) {
+        // Space-scoped: only reaches attendees in this specific space
+        await push(`complex_notifications/${complexId}/spaces/${spaceId}/${notification.id}`, notification);
+      } else if (complexId) {
+        // Complex-wide broadcast: reaches ALL attendees in the complex
+        await push(`complex_notifications/${complexId}/broadcast_all/${notification.id}`, notification);
+      } else if (venueId) {
+        // Legacy single-venue path
+        await push(`notifications/${venueId}`, notification);
+      }
     } catch {
-      // RTDB unavailable — still return the notification object for optimistic UI
+      // RTDB unavailable — still return notification for optimistic UI
+    }
+
+    // ── FCM fan-out to on-duty staff ──────────────────────────────────────────────────────
+    // Only fan-out for emergency or warning type notifications
+    if ((type === 'emergency' || type === 'warning') && venueId) {
+      try {
+        const { adminFirestore, adminMessaging } = await import('@/lib/firebaseAdmin');
+        // Derive orgId from venueId by scanning orgs (best-effort, non-blocking)
+        const orgSnap = await adminFirestore
+          .collection('organizations')
+          .where('venueIds', 'array-contains', venueId)
+          .limit(1)
+          .get();
+
+        if (!orgSnap.empty) {
+          const orgId = orgSnap.docs[0].id;
+          const tokensSnap = await adminFirestore
+            .collection('organizations')
+            .doc(orgId)
+            .collection('venues')
+            .doc(venueId)
+            .collection('push_tokens')
+            .get();
+
+          const tokens = tokensSnap.docs.map(d => d.data().fcmToken as string).filter(Boolean);
+
+          if (tokens.length > 0) {
+            await adminMessaging.sendEachForMulticast({
+              tokens,
+              notification: {
+                title: title ?? 'VenueFlow Alert',
+                body : safe,
+              },
+              data: { type: type ?? 'info', venueId },
+            });
+          }
+        }
+      } catch (fcmErr) {
+        console.warn('[Notify] FCM fan-out failed (non-blocking):', fcmErr);
+      }
     }
 
     return NextResponse.json({ ok: true, notification });

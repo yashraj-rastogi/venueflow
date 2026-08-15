@@ -10,6 +10,8 @@
 import { initializeApp, getApps, cert, applicationDefault, App } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { getMessaging } from 'firebase-admin/messaging';
 
 const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL;
 
@@ -37,6 +39,8 @@ function getAdminApp(): App {
 
 export const adminDb        = getDatabase(getAdminApp());
 export const adminFirestore = getFirestore(getAdminApp());
+export const adminAuth      = getAuth(getAdminApp());
+export const adminMessaging = getMessaging(getAdminApp());
 
 // ─── Database helpers (privileged, rule-bypassing) ──────────────────────────────
 

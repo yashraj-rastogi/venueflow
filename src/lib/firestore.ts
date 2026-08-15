@@ -19,6 +19,7 @@ import { app } from '@/lib/firebase';
 import {
   Organization, StaffMember, VenueEvent, Incident,
   GuestSession, Venue, StaffRole,
+  VenueComplex, VenueSpace, SpaceEvent, AnalyticsSnapshot,
 } from '@/types';
 
 export const db = getFirestore(app);
@@ -34,6 +35,18 @@ export const incidentsCol = () => collection(db, 'incidents');
 export const guestsCol    = () => collection(db, 'guest_sessions');
 export const snapshotsCol = (venueId: string) =>
   collection(db, `crowd_snapshots/${venueId}/snapshots`);
+
+// ── Venue Complex collection references (v2) ──────────────────────────────────
+export const complexesCol   = () => collection(db, 'venue_complexes');
+export const spacesCol      = (complexId: string) =>
+  collection(db, `venue_complexes/${complexId}/spaces`);
+export const spaceStaffCol  = (complexId: string, spaceId: string) =>
+  collection(db, `venue_complexes/${complexId}/spaces/${spaceId}/staff`);
+export const spaceEventsCol = () => collection(db, 'space_events');
+export const pushTokensCol  = (orgId: string, venueId: string) =>
+  collection(db, `organizations/${orgId}/venues/${venueId}/push_tokens`);
+export const analyticsCol   = (venueId: string) =>
+  collection(db, `analytics/${venueId}/snapshots`);
 
 // ── Organization helpers ──────────────────────────────────────────────────────
 
@@ -211,5 +224,122 @@ export function subscribeToVenueEvents(
 
 export async function updateGuestSession(sessionId: string, data: Partial<GuestSession>): Promise<void> {
   await updateDoc(doc(db, 'guest_sessions', sessionId), data as DocumentData);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VENUE COMPLEX HELPERS (v2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── VenueComplex CRUD ─────────────────────────────────────────────────────────
+
+export async function getComplex(complexId: string): Promise<VenueComplex | null> {
+  const snap = await getDoc(doc(db, 'venue_complexes', complexId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } as VenueComplex : null;
+}
+
+export async function createComplex(data: Omit<VenueComplex, 'id'>): Promise<string> {
+  // Use the slug-style id from the data (caller provides it via `data` cast)
+  const ref = doc(complexesCol(), (data as VenueComplex & { id: string }).id ?? 'complex');
+  await setDoc(ref, { ...data, createdAt: Date.now() });
+  return ref.id;
+}
+
+export async function updateComplex(complexId: string, data: Partial<VenueComplex>): Promise<void> {
+  await updateDoc(doc(db, 'venue_complexes', complexId), data as DocumentData);
+}
+
+// ── VenueSpace CRUD ───────────────────────────────────────────────────────────
+
+export async function getComplexSpaces(complexId: string): Promise<VenueSpace[]> {
+  const snaps = await getDocs(spacesCol(complexId));
+  return snaps.docs.map(d => ({ id: d.id, ...d.data() }) as VenueSpace);
+}
+
+export async function getSpace(complexId: string, spaceId: string): Promise<VenueSpace | null> {
+  const snap = await getDoc(doc(db, `venue_complexes/${complexId}/spaces`, spaceId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } as VenueSpace : null;
+}
+
+export async function createSpace(complexId: string, data: Omit<VenueSpace, 'id'> & { id?: string }): Promise<string> {
+  if (data.id) {
+    await setDoc(doc(spacesCol(complexId), data.id), data);
+    return data.id;
+  }
+  const ref = await addDoc(spacesCol(complexId), data);
+  return ref.id;
+}
+
+export async function updateSpace(complexId: string, spaceId: string, data: Partial<VenueSpace>): Promise<void> {
+  await updateDoc(doc(db, `venue_complexes/${complexId}/spaces`, spaceId), data as DocumentData);
+}
+
+export function subscribeToComplexSpaces(
+  complexId: string,
+  callback: (spaces: VenueSpace[]) => void,
+): () => void {
+  return onSnapshot(spacesCol(complexId), snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() }) as VenueSpace));
+  });
+}
+
+// ── SpaceEvent CRUD ───────────────────────────────────────────────────────────
+
+export async function getSpaceEvents(complexId: string, spaceId?: string): Promise<SpaceEvent[]> {
+  const constraints: QueryConstraint[] = [where('complexId', '==', complexId), limit(50)];
+  if (spaceId) constraints.push(where('spaceId', '==', spaceId));
+  const snaps = await getDocs(query(spaceEventsCol(), ...constraints));
+  const list  = snaps.docs.map(d => ({ id: d.id, ...d.data() }) as SpaceEvent);
+  return list.sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
+}
+
+export async function createSpaceEvent(data: Omit<SpaceEvent, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(spaceEventsCol(), { ...data, createdAt: Date.now() });
+  return ref.id;
+}
+
+export async function updateSpaceEvent(eventId: string, data: Partial<SpaceEvent>): Promise<void> {
+  await updateDoc(doc(spaceEventsCol(), eventId), data as DocumentData);
+}
+
+export function subscribeToLiveSpaceEvents(
+  complexId: string,
+  callback: (events: SpaceEvent[]) => void,
+): () => void {
+  const q = query(spaceEventsCol(), where('complexId', '==', complexId), where('status', '==', 'live'));
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() }) as SpaceEvent));
+  });
+}
+
+// ── Guest Session TTL Cleanup (Privacy — v2) ──────────────────────────────────
+
+/**
+ * Returns guest sessions that have passed their expiresAt TTL.
+ * Called by POST /api/sessions/cleanup (triggered by Cloud Scheduler every 6h).
+ */
+export async function getExpiredGuestSessions(nowMs: number = Date.now()): Promise<GuestSession[]> {
+  const q = query(guestsCol(), where('expiresAt', '<', nowMs), limit(500));
+  const snaps = await getDocs(q);
+  return snaps.docs.map(d => ({ id: d.id, ...d.data() }) as GuestSession);
+}
+
+/** Batch-deletes expired sessions. Uses Firestore batch writes (max 500 per batch). */
+export async function deleteGuestSessions(sessionIds: string[]): Promise<void> {
+  if (sessionIds.length === 0) return;
+  const batch = writeBatch(db);
+  sessionIds.forEach(id => batch.delete(doc(guestsCol(), id)));
+  await batch.commit();
+}
+
+// ── Analytics Snapshots (Track B) ────────────────────────────────────────────
+
+export async function saveAnalyticsSnapshot(venueId: string, snap: AnalyticsSnapshot): Promise<void> {
+  await addDoc(analyticsCol(venueId), { ...snap, savedAt: Date.now() });
+}
+
+export async function getAnalyticsHistory(venueId: string, limitN = 48): Promise<AnalyticsSnapshot[]> {
+  const q = query(analyticsCol(venueId), orderBy('timestamp', 'desc'), limit(limitN));
+  const snaps = await getDocs(q);
+  return snaps.docs.map(d => d.data() as AnalyticsSnapshot);
 }
 

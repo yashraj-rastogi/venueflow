@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged, User, signInAnonymously } from 'firebase/auth';
 import { getDatabase, ref, onValue, set, push, off, DatabaseReference } from 'firebase/database';
 import { getAnalytics, isSupported } from 'firebase/analytics';
@@ -17,6 +18,18 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
+
+// Initialize Firebase App Check client-side if reCAPTCHA key is provided
+if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (appCheckErr) {
+    console.warn('[Firebase] App Check init failed:', appCheckErr);
+  }
+}
 
 // Google Auth Provider
 const googleProvider = new GoogleAuthProvider();

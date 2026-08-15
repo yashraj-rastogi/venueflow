@@ -15,6 +15,29 @@ export async function pushSnapshotToRTDB(
   snapshot: CrowdSnapshot,
 ): Promise<void> {
   await writePath(`venues/${venueId}/crowd`, snapshot);
+
+  // ── Phase 6f: Red-Zone Density FCM Push Alert Trigger ─────────────────────
+  if (snapshot?.zones) {
+    for (const [zoneId, zData] of Object.entries(snapshot.zones)) {
+      if (zData.density >= 0.75) {
+        try {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          await fetch(`${appUrl}/api/notify`, {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+              venueId,
+              title  : `🚨 High Congestion: Zone ${zoneId}`,
+              message: `Zone ${zoneId} has reached ${Math.round(zData.density * 100)}% capacity (${zData.count} guests). Immediate staff dispatch recommended.`,
+              type   : 'emergency',
+            }),
+          });
+        } catch (err) {
+          console.warn('[CrowdEngine] Red-zone alert trigger failed (non-blocking):', err);
+        }
+      }
+    }
+  }
 }
 
 // ── Simulation interval manager (in-memory, per-process) ─────────────────────

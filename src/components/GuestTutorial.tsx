@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Activity, ArrowRight, Bot, CheckCircle2, ChevronRight, Compass, MapPin, Navigation, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { Activity, ArrowRight, Bot, CheckCircle2, ChevronRight, Compass, MapPin, Navigation, QrCode, ShieldCheck, Sparkles, X } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -8,12 +8,13 @@ interface Props {
   onComplete: () => void;
   venueName?: string;
   eventName?: string;
+  isComplexGuest?: boolean;
 }
 
-const SLIDES = [
+const BASE_SLIDES = [
   {
     icon: Activity,
-    badge: 'Step 1 of 4',
+    badge: 'Step 1',
     title: 'Welcome to VenueFlow',
     subtitle: 'Your real-time smart companion inside the venue.',
     description: 'Avoid long concession lines, find the shortest restroom queues, and receive instant emergency or transit updates during your event.',
@@ -26,7 +27,7 @@ const SLIDES = [
   },
   {
     icon: Compass,
-    badge: 'Step 2 of 4',
+    badge: 'Step 2',
     title: 'Live Zone Heatmap',
     subtitle: 'See crowd density across every stand and gate.',
     description: 'Zones are color-coded in real time. Green means low crowd density, amber is moderate, and red signals heavy congestion.',
@@ -39,7 +40,7 @@ const SLIDES = [
   },
   {
     icon: Bot,
-    badge: 'Step 3 of 4',
+    badge: 'Step 3',
     title: 'Instant AI Assistant',
     subtitle: 'Ask questions in plain English or your native language.',
     description: 'Tap the AI Chat tab anytime to ask: "Where is the nearest restroom with shortest wait?" or "Which gate is best for egress?"',
@@ -52,7 +53,7 @@ const SLIDES = [
   },
   {
     icon: ShieldCheck,
-    badge: 'Step 4 of 4',
+    badge: 'Step 4',
     title: 'Checked In & Ready',
     subtitle: 'You are now connected to the central venue network.',
     description: 'Your check-in helps venue operators monitor crowd flow safety and ensure smooth exit routes when the event finishes.',
@@ -65,8 +66,24 @@ const SLIDES = [
   },
 ];
 
-export default function GuestTutorial({ isOpen, onClose, onComplete, venueName, eventName }: Props) {
+const STEP_5_COMPLEX = {
+  icon: QrCode,
+  badge: 'Step 5',
+  title: 'Scan Zone QR Codes',
+  subtitle: 'Automatic location updates as you move around.',
+  description: 'Yellow QR codes posted at each area inside this complex automatically update your position on the map without typing.',
+  highlights: [
+    '📍 Scanning updates your zone in <1 second',
+    '🚪 Move seamlessly between halls & stages',
+    '📱 Shared corridor wait times included automatically',
+  ],
+  color: '#EC4899',
+};
+
+export default function GuestTutorial({ isOpen, onClose, onComplete, venueName, eventName, isComplexGuest }: Props) {
   const [currentSlide, setCurrentSlide] = useState(0);
+
+  const SLIDES = isComplexGuest ? [...BASE_SLIDES, STEP_5_COMPLEX] : BASE_SLIDES;
 
   useEffect(() => {
     if (isOpen) {
@@ -77,7 +94,8 @@ export default function GuestTutorial({ isOpen, onClose, onComplete, venueName, 
   if (!isOpen) return null;
 
   const slide = SLIDES[currentSlide];
-  const isLast = currentSlide === SLIDES.length - 1;
+  const totalSteps = SLIDES.length;
+  const isLast = currentSlide === totalSteps - 1;
 
   const handleNext = () => {
     if (isLast) {

@@ -1,4 +1,4 @@
-import { Venue, CrowdSnapshot, Notification } from '@/types';
+import { Venue, CrowdSnapshot, Notification, VenueComplex, VenueSpace, SpaceEvent } from '@/types';
 
 export const SAMPLE_VENUES: Venue[] = [
   // ── Single Demo Venue: MetLife Stadium — New York/NJ ───────────────────────
@@ -96,3 +96,128 @@ export function simulateCrowdUpdate(snapshot: CrowdSnapshot): CrowdSnapshot {
   updated.totalCount = Object.values(updated.zones).reduce((s, z) => s + z.count, 0);
   return updated;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO COMPLEX: Bharat Mandap — India AI Impact Summit (v2 showcase)
+// Only used when complexId === 'bharat-mandap'. Never leaks to real custom venues.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const SAMPLE_COMPLEX: VenueComplex = {
+  id               : 'bharat-mandap',
+  name             : 'Bharat Mandap Convention Centre',
+  city             : 'New Delhi',
+  address          : 'Pragati Maidan, Mathura Road, New Delhi — 110001',
+  totalCapacity    : 7000,
+  floors           : 4,
+  lat              : 28.6196,
+  lng              : 77.2408,
+  complexAdminOrgId: 'itpo',
+  imageUrl         : '/complex-bharat-mandap.jpg',
+  plan             : 'enterprise',
+};
+
+export const SAMPLE_SPACES: VenueSpace[] = [
+  {
+    id: 'hall-1-ground', complexId: 'bharat-mandap',
+    name: 'Hall 1 — Keynote Stage (Ground Floor)', floor: 0,
+    capacity: 2000, isShared: false,
+    coordinates: [
+      { lat: 28.6200, lng: 77.2404 }, { lat: 28.6205, lng: 77.2404 },
+      { lat: 28.6205, lng: 77.2412 }, { lat: 28.6200, lng: 77.2412 },
+    ],
+    amenities: [
+      { id: 'bm-rest-g1', type: 'restroom', name: 'Ground Floor Restroom (Hall 1)', location: { lat: 28.6201, lng: 77.2405 }, section: 'hall-1-ground', waitTime: 3, predictedWaitTime: 6, trend: 'increasing', isOpen: true },
+      { id: 'bm-gate-g1', type: 'gate',     name: 'Hall 1 Main Entrance',          location: { lat: 28.6199, lng: 77.2408 }, section: 'hall-1-ground', waitTime: 2, predictedWaitTime: 2, trend: 'stable',   isOpen: true },
+    ],
+    isStepFree: true,
+  },
+  {
+    id: 'hall-a-floor1', complexId: 'bharat-mandap',
+    name: 'Hall A — Technical Tracks (Floor 1)', floor: 1,
+    capacity: 500, isShared: false,
+    coordinates: [
+      { lat: 28.6197, lng: 77.2404 }, { lat: 28.6200, lng: 77.2404 },
+      { lat: 28.6200, lng: 77.2409 }, { lat: 28.6197, lng: 77.2409 },
+    ],
+    amenities: [
+      { id: 'bm-rest-a1', type: 'restroom',   name: 'Hall A Restroom',          location: { lat: 28.6198, lng: 77.2405 }, section: 'hall-a-floor1', waitTime: 5, predictedWaitTime: 4, trend: 'decreasing', isOpen: true },
+      { id: 'bm-conc-a1', type: 'concession', name: 'Hall A Refreshment Counter', location: { lat: 28.6199, lng: 77.2407 }, section: 'hall-a-floor1', waitTime: 7, predictedWaitTime: 9, trend: 'increasing',  isOpen: true },
+    ],
+    isStepFree: false,
+  },
+  {
+    id: 'hall-b-floor1', complexId: 'bharat-mandap',
+    name: 'Hall B — Startup Expo (Floor 1)', floor: 1,
+    capacity: 800, isShared: false,
+    coordinates: [
+      { lat: 28.6194, lng: 77.2404 }, { lat: 28.6197, lng: 77.2404 },
+      { lat: 28.6197, lng: 77.2412 }, { lat: 28.6194, lng: 77.2412 },
+    ],
+    amenities: [
+      { id: 'bm-rest-b1', type: 'restroom', name: 'Hall B Restroom', location: { lat: 28.6195, lng: 77.2406 }, section: 'hall-b-floor1', waitTime: 2, predictedWaitTime: 3, trend: 'stable', isOpen: true },
+    ],
+    isStepFree: true,
+  },
+  {
+    // Shared corridor — no event owns this; all attendees see its density
+    id: 'corridor-north', complexId: 'bharat-mandap',
+    name: 'North Corridor & Elevators (Shared)', floor: 1,
+    capacity: 400, isShared: true,
+    coordinates: [
+      { lat: 28.6200, lng: 77.2409 }, { lat: 28.6205, lng: 77.2409 },
+      { lat: 28.6205, lng: 77.2412 }, { lat: 28.6200, lng: 77.2412 },
+    ],
+    amenities: [
+      { id: 'bm-elev-n1', type: 'elevator', name: 'North Elevator Bank', location: { lat: 28.6202, lng: 77.2410 }, section: 'corridor-north', waitTime: 1, predictedWaitTime: 3, trend: 'increasing', isOpen: true },
+    ],
+    isStepFree: true,
+  },
+];
+
+export const SAMPLE_SPACE_EVENTS: SpaceEvent[] = [
+  {
+    id: 'evt-keynote', complexId: 'bharat-mandap', spaceId: 'hall-1-ground',
+    orgId: 'nasscom', name: 'India AI Impact Summit — Opening Keynote',
+    type: 'summit', date: Date.now() - 3_600_000,
+    status: 'live', expectedAttendance: 1800,
+    currentPhaseId: 'first_half',
+    checkinUrl: '/checkin/bharat-mandap/space/hall-1-ground?event=evt-keynote',
+    description: 'Opening address by the Minister of Electronics & IT followed by industry leaders.',
+    createdAt: Date.now() - 86_400_000,
+  },
+  {
+    id: 'evt-ai-track', complexId: 'bharat-mandap', spaceId: 'hall-a-floor1',
+    orgId: 'google-deepmind-india', name: 'AI in Healthcare — Technical Track',
+    type: 'conference', date: Date.now() - 2_400_000,
+    status: 'live', expectedAttendance: 420,
+    currentPhaseId: 'first_half',
+    checkinUrl: '/checkin/bharat-mandap/space/hall-a-floor1?event=evt-ai-track',
+    description: 'Deep-dive technical sessions on AI applications in diagnostics, drug discovery, and patient care.',
+    createdAt: Date.now() - 86_400_000,
+  },
+  {
+    id: 'evt-expo', complexId: 'bharat-mandap', spaceId: 'hall-b-floor1',
+    orgId: 'ispirt', name: 'AI Startup Expo — iSPIRT Pavilion',
+    type: 'expo', date: Date.now() - 4_200_000,
+    status: 'live', expectedAttendance: 650,
+    checkinUrl: '/checkin/bharat-mandap/space/hall-b-floor1?event=evt-expo',
+    description: 'Over 80 AI startups from across India showcase their products and seek investor connects.',
+    createdAt: Date.now() - 86_400_000,
+  },
+];
+
+/**
+ * Demo RTDB crowd snapshot for the Bharat Mandap complex.
+ * Used to seed `complex_crowd/bharat-mandap` during local development.
+ */
+export const SAMPLE_COMPLEX_CROWD = {
+  totalCount: 2870,
+  shared: {
+    'corridor-north': { density: 0.68, count: 272, capacity: 400, status: 'warning', spaceName: 'North Corridor & Elevators (Shared)' },
+  },
+  spaces: {
+    'hall-1-ground': { eventId: 'evt-keynote',  orgId: 'nasscom',               density: 0.82, count: 1476, capacity: 2000, status: 'congested' },
+    'hall-a-floor1': { eventId: 'evt-ai-track', orgId: 'google-deepmind-india', density: 0.74, count: 370,  capacity: 500,  status: 'warning'   },
+    'hall-b-floor1': { eventId: 'evt-expo',     orgId: 'ispirt',                density: 0.47, count: 376,  capacity: 800,  status: 'normal'    },
+  },
+};

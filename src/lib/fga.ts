@@ -29,8 +29,31 @@ function getClient(): OpenFgaClient {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type FgaObjectType = 'zone' | 'venue' | 'notification';
-export type FgaRelation   = 'viewer' | 'editor' | 'owner' | 'staff' | 'admin' | 'can_send';
+export type FgaObjectType =
+  | 'zone'
+  | 'venue'
+  | 'notification'
+  | 'complex'   // VenueComplex — the physical building
+  | 'space';    // VenueSpace   — a named area within the complex
+
+export type FgaRelation =
+  | 'viewer'        // read-only access
+  | 'editor'        // can edit venue/space settings
+  | 'owner'         // org owner
+  | 'staff'         // on-duty staff for a venue or space
+  | 'admin'         // venue admin
+  | 'can_send'      // can send notifications
+  | 'complex_admin' // facility manager — sees ALL spaces, can broadcast to everyone
+  | 'space_admin';  // event organizer — sees ONLY their space, broadcasts to their attendees
+
+/*
+ * Relationship tuple examples for the Complex model:
+ *
+ *   user:{userId} is complex_admin of complex:{complexId}   ← ITPO / facility manager
+ *   user:{userId} is space_admin   of space:{spaceId}       ← event organizer (NASSCOM, Google)
+ *   user:{userId} is staff         of space:{spaceId}       ← volunteer / on-duty staff
+ *   user:{userId} is viewer        of complex:{complexId}   ← security guard (read-only all spaces)
+ */
 
 // ── Core check ────────────────────────────────────────────────────────────────
 
