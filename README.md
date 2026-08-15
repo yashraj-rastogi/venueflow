@@ -1,186 +1,236 @@
 # 🏟️ VenueFlow: Real-Time Crowd Intelligence & Safety Platform
 
-> **Transforming Large Venues with Real-Time Density Heatmaps, Automated DIM-ICE Crowd Safety Alerts, and Multilingual AI Navigation.**
+<div align="center">
 
-VenueFlow is an enterprise SaaS platform engineered for stadiums, arenas, festival grounds, and large-scale event facilities. Built with Next.js 14 App Router, React 19, Firebase, Google Maps Places API, and Google Gemini AI, VenueFlow replaces legacy manual crowd management with a real-time, data-driven "Mission Control" system.
+[![Google for Developers](https://img.shields.io/badge/Google%20for%20Developers-PromptWars%20Virtual%20Verified-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://developers.google.com/)
+[![Built with AI](https://img.shields.io/badge/Build%20with%20AI-Challenge%203%20Solution-FF6D00?style=for-the-badge&logo=googlegemini&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![Next.js 14](https://img.shields.io/badge/Next.js-14%20App%20Router-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Firebase RTDB](https://img.shields.io/badge/Firebase-Realtime%20DB%20%2B%20Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![OpenFGA](https://img.shields.io/badge/Auth-OpenFGA%20ReBAC-5C2D91?style=for-the-badge&logo=auth0&logoColor=white)](https://openfga.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
+<br/>
+
+> **Transforming mega-events, stadiums, and multi-hall convention complexes with sub-second crowd density heatmaps, automated DIM-ICE safety protocols, Zanzibar-style ReBAC authorization, and multilingual Gemini AI navigation.**
+
+[Live Demo](#-quick-start--local-setup) • [Architecture](#-system-architecture) • [Features](#-key-features--capabilities) • [AI Security & Evaluation](#-owasp-llm-security--promptfoo-evaluations) • [Setup Guide](#-quick-start--local-setup)
+
+</div>
+
+---
+
+## 🌟 Hackathon Recognition: PromptWars Virtual
+
+VenueFlow was developed and verified for **Google for Developers & Hack2Skill (H2S) PromptWars Virtual: Build with AI**, receiving a **Certificate of Appreciation** for successfully architecting and submitting a verified Generative AI solution for **Challenge 3**.
+
+- **Event**: Google for Developers PromptWars Virtual (`Build with AI`)
+- **Awardee**: Yashraj Rastogi
+- **Verification ID**: `2026H2S06PWVCHL3-A00255`
+- **Focus**: Real-time Generative AI crowd management, intelligent queue forecasting, and multi-tenant ReBAC facility safety.
 
 ---
 
 ## 🎯 The Problem VenueFlow Solves
 
-1. **Crowd Congestion & Safety Hazards**: Unmanaged crowd surges at stadium gates, food courts, and egress bottlenecks create high-risk safety hazards. Without real-time density tracking, operators cannot detect crowd build-ups before they breach dangerous thresholds.
-2. **Frustrated Guests & Long Lines**: Stadium attendees spend upwards of 30 minutes stuck in concession and restroom lines, missing key event moments and halftime shows due to lack of visibility.
-3. **Operator Blindspots**: Venue management teams traditionally rely on static security feeds and radio chatter, lacking a single unified dashboard to monitor live zone capacity, control event phase progressions (Pre-Game, Halftime, Egress), or issue targeted section broadcasts.
+1. **Crowd Congestion & Safety Hazards**: Unmanaged crowd surges at stadium gates, food courts, and egress bottlenecks create high-risk safety hazards. Without real-time density tracking, venue operators cannot detect crowd build-ups before they breach dangerous thresholds.
+2. **Frustrated Guests & Lost Event Time**: Stadium attendees spend upwards of 30 minutes stuck in concession and restroom lines, missing key game moments or performances due to lack of visibility.
+3. **Operator Blindspots & Multi-Tenant Silos**: Venue management teams traditionally rely on static security feeds and radio chatter. Large convention complexes (e.g. Bharat Mandapam, Javits Center) host multiple simultaneous events without unified cross-space density visibility.
+4. **Accessibility Barriers**: Guests requiring step-free wheelchair routes frequently encounter unexpected congestion or stair-only pathways.
 
 ---
 
 ## 💡 How VenueFlow Solves It
 
 ```
-                              ┌─────────────────────────────────────────┐
-                              │           VENUEFLOW PLATFORM            │
-                              └────────────────────┬────────────────────┘
-                                                   │
-         ┌─────────────────────────────────────────┼─────────────────────────────────────────┐
-         │                                         │                                         │
-┌────────┴────────┐                       ┌────────┴────────┐                       ┌────────┴────────┐
-│ ORGANIZATIONS   │                       │ REAL-TIME ENGINE│                       │ GUEST PWA       │
-│ & STADIUM IMPORTER                       │ & DIM-ICE SAFETY│                       │ & AI ASSISTANT  │
-└────────┬────────┘                       └────────┬────────┘                       └────────┬────────┘
-         │                                         │                                         │
- 🏢 Google Places API                      ⚡ Firebase RTDB                          🤖 Gemini 1.5 &
-    Real lat/lng geocoding                    Live 30s zone telemetry                   Domain AI Engine
- 🗺️ Dynamic stadium map &                  🚨 Automated 85%/90%                      💬 6 Languages
-    zone polygon generator                    safety alert triggers                     ♿ Step-free paths
+                               ┌─────────────────────────────────────────────────────────┐
+                               │                    VENUEFLOW PLATFORM                   │
+                               └────────────────────────────┬────────────────────────────┘
+                                                            │
+         ┌──────────────────────────────────────────────────┼──────────────────────────────────────────────────┐
+         │                                                  │                                                  │
+┌────────┴──────────────┐                          ┌────────┴──────────────┐                          ┌────────┴──────────────┐
+│  OPERATIONS & FACILITY│                          │   REAL-TIME ENGINE    │                          │      GUEST PWA        │
+│    MISSION CONTROL    │                          │   & DIM-ICE SAFETY    │                          │   & GEMINI ASSISTANT  │
+└────────┬──────────────┘                          └────────┬──────────────┘                          └────────┬──────────────┘
+         │                                                  │                                                  │
+ 🏢 Google Places API                               ⚡ Firebase RTDB WebSocket                         🤖 Google Gemini 2.5/1.5
+    Real lat/lng geocoding                             Sub-second zone telemetry                          Context-aware navigation
+ 🔐 OpenFGA ReBAC Auth                              🚨 DIM-ICE Crowd Protocol                          🌐 6-Language Translation
+    Zanzibar relationship access                       Automated 85%/90% safety triggers                  ♿ Step-Free Accessible Paths
+ 🏛️ Multi-Space Complexes                            📊 Queue Wait Forecaster                           🛡️ OWASP LLM01 Sanitizer
 ```
-
-### Key Pillars & Core Solutions
-
-1. **Real-World Stadium Importer (Google Maps Places API)**
-   - Paste any Google Maps URL or type any venue name (e.g. *Wembley Stadium*, *Madison Square Garden*, *MetLife Stadium*).
-   - VenueFlow queries Google Places API (`textsearch` + `details`) to fetch exact geographic coordinates, automatically generating zone polygons and amenity markers centered on the stadium's real-world location.
-
-2. **Real-Time Crowd Density Engine (Firebase RTDB)**
-   - Tracks live occupancy across all venue zones (e.g. North Lower, South Lower, East Club, West Club, Upper Deck).
-   - Updated continuously via simulated IoT sensors, staff gate check-ins, or live event phase simulation loops.
-
-3. **DIM-ICE Automated Safety Protocol**
-   - Implements the international DIM-ICE (Direction, Information, Movement, Management, Infrastructure, Capacity, Entrances/Exits) crowd safety framework.
-   - Automatically triggers **High Congestion Warnings** at 85% zone capacity and **Critical Safety Re-allocations** at 90% capacity.
-
-4. **Zero-Install Guest PWA & Multilingual AI Assistant (`/g/[venueId]`)**
-   - Attendees scan a venue QR code to instantly access an interactive Leaflet dark-matter heatmap, live wait times for restrooms/concessions, and step-free accessible routes.
-   - **Ask AI**: Multilingual assistant supporting English, Spanish, Portuguese, French, Hindi, and Arabic. Features OWASP LLM01 prompt-injection sanitization, budget-aware model routing (Gemini 1.5 Flash / 1.5 Pro), and a fail-safe Smart Local Domain AI fallback.
-
-5. **Operator Mission Control (`/org/[orgId]/venue/[venueId]/admin`)**
-   - High-density operator dashboard with real-time KPI metrics (Total Guests, Avg Occupancy, Critical Zones, Open Incidents).
-   - Interactive stadium map overlay, simulation controls (Go Live, Advance Phase: Pre-Game → Halftime → Egress), emergency broadcast center, and incident log.
-
-6. **Staff Gate Operations Console (`/org/[orgId]/venue/[venueId]/staff`)**
-   - Mobile-optimized interface for gate staff to log live check-ins and check-outs, monitor section capacity in real time, and report incidents instantly.
 
 ---
 
-## 👥 User Flows
+## 🚀 Key Features & Capabilities
 
-### Flow 1: Organization & Real-World Venue Setup
-```
-Landing Page (/) ➔ Onboarding (/onboarding) ➔ Org Dashboard (/org/[orgId]) ➔ Add Real-World Venue
-```
-1. Users land on the sleek SaaS landing page and click **"Start free trial"** or **"View live demo"**.
-2. **Onboarding Wizard** prompts the user to create their organization (e.g., *MetLife Sports Group*).
-3. On the Organization Dashboard, admins can choose the pre-loaded **MetLife Stadium** demo or click **"Add venue with Google Maps"** to import any stadium worldwide using Google Places API.
+### 1. 🤖 Multilingual Gemini AI Navigation & Queue Forecasting
+- **Context-Aware Assistance**: Powered by **Google Gemini 2.5 Flash / 1.5 Pro** with intelligent fallback to a local domain rule engine for 100% uptime.
+- **Natural Language Q&A**: Answers attendee queries like *"Where is the shortest line for cold drinks near Gate 3?"* or *"How crowded is the East Club level?"*
+- **Multilingual Support**: Real-time response in **English, Spanish, Portuguese, French, Hindi, and Arabic**.
+- **Dynamic Queue Predictions**: Predicts 15-minute and 30-minute line trends based on event phase (*Doors Open, Pre-Game, Halftime, Egress*).
 
-### Flow 2: Operator Command Center & Live Simulation
-```
-Org Dashboard (/org/[orgId]) ➔ Venue Admin (/org/[orgId]/venue/[venueId]/admin) ➔ Go Live
-```
-1. Operator selects a venue to open the **Per-Venue Admin Console**.
-2. Operator views real-time venue KPIs, interactive map heatmaps, and zone status tables.
-3. Clicking **"Go Live"** initiates the event simulation loop, stepping through event phases (*Doors Open ➔ Pre-Game ➔ Halftime ➔ Egress*) while RTDB broadcasts updated density telemetry to all connected clients.
-4. Operator can issue targeted announcements to specific sections or resolve reported incidents.
+### 2. ⚡ Real-Time Crowd Density Heatmaps (Sub-Second Sync)
+- **Interactive Dark-Matter Map**: Powered by Leaflet with dynamic color-coded SVG polygon overlays reflecting live density:
+  - 🟢 **Green (0%–35%)**: Low density, swift movement.
+  - 🟡 **Amber (36%–75%)**: Moderate activity.
+  - 🔴 **Red (76%–100%)**: High congestion / bottleneck alert.
+- **Firebase Realtime Database**: Synchronizes IoT sensor ticks, gate check-in counts, and staff updates to thousands of concurrent clients in <50ms.
 
-### Flow 3: Mobile Gate Check-In & Staff Management
-```
-Admin Navigation ➔ Staff Portal (/org/[orgId]/venue/[venueId]/staff) ➔ Gate Scan
-```
-1. Staff members open their designated gate view.
-2. Staff log incoming guest check-ins with one tap, updating real-time section counts.
-3. Gate queue wait times and section densities update automatically across both Admin and Guest dashboards.
+### 3. 🚨 International DIM-ICE Automated Safety Protocol
+- Implements the **DIM-ICE** crowd safety framework (*Direction, Information, Movement, Management, Infrastructure, Capacity, Entrances/Exits*).
+- **Automated Threshold Triggers**:
+  - **85% Capacity**: Triggers proactive staff re-route alerts.
+  - **90% Capacity**: Initiates critical crowd re-allocation warnings and triggers immediate operator broadcast options.
 
-### Flow 4: Guest Mobile PWA & AI Navigation
-```
-Scan Venue QR Code ➔ Guest View (/g/[venueId]) ➔ Live Map / Wait Times / Ask AI
-```
-1. Attendees scan the venue QR code or visit `/g/[venueId]`.
-2. **Live Map Tab**: Displays an interactive Leaflet dark-matter map with live color-coded zone density circles and emoji amenity markers (🚻 restrooms, 🍔 food, 🛍️ shops, 🚪 gates).
-3. **Wait Times Tab**: Lists open restrooms and food courts sorted by shortest wait time, with accessibility indicators (♿ Step-Free).
-4. **Ask AI Tab**: Guest types or speaks a question in their preferred language (e.g., *"Where is the nearest restroom?"* or *"Which zone is least crowded?"*). The AI assistant responds instantly with context-aware venue advice.
+### 4. 🏢 Real-World Stadium & Multi-Space Complex Importer
+- **Google Maps Places API Integration**: Import any venue globally (e.g. *MetLife Stadium, Wembley, Madison Square Garden, Bharat Mandapam*) by name or URL.
+- **Complex & Space Hierarchy**: Supports multi-hall complexes with independent spaces (Hall 1, Hall 2, Plenary Hall, Shared Atrium) with distinct organizers and centralized facility oversight.
+
+### 5. 🔐 OpenFGA Zanzibar Relationship-Based Access Control (ReBAC)
+- Fine-grained relationship authorization preventing unauthorized mutations:
+  - `complex_admin`: Facility managers view all spaces and issue global emergency broadcasts.
+  - `space_admin`: Event organizers manage only their assigned hall or session.
+  - `staff`: On-duty gate staff scan tickets and report localized incidents.
+  - `viewer`: Public attendees access live guest maps and safe routing.
+
+### 6. 📱 Zero-Install Guest PWA & Accessible Routing
+- Attendees scan a QR code at gate check-in—**no app download or registration required**.
+- **Accessibility Mode**: Step-free wheelchair navigation avoiding stairs, escalators, and congested choke points.
 
 ---
 
-## 🛡️ OWASP LLM Security & Safety Architecture
+## 🛡️ OWASP LLM Security & Promptfoo Evaluations
 
-- **OWASP LLM01 (Prompt Injection Guard)**: All user queries in *Ask AI* pass through `sanitizeInput()` (`src/lib/inputGuard.ts`), filtering out adversarial prompts, system prompt overrides, or unauthorized commands.
-- **OWASP LLM02 (PII/PCI Data Scrubber)**: AI responses pass through `scrubOutput()`, redacting any sensitive internal telemetry, personal identifiable information, or credentials.
-- **Role-Based Access Control (RBAC)**: Firestore Security Rules enforce strict org-level and venue-level permissions so operators can only modify venues within their organization.
+VenueFlow embeds rigorous security and quality standards directly into the AI pipeline:
+
+- **OWASP LLM01 (Prompt Injection Guard)**: Sanitizes input queries via regex and heuristic safety filters (`src/lib/inputGuard.ts`), deflecting jailbreak attempts.
+- **OWASP LLM02 (PII & Secret Scrubber)**: Automatically redacts internal tokens, credentials, and attendee PII from model completions.
+- **OWASP LLM06 (Deterministic Action Gating)**: Mutations (emergency broadcasts, density overrides) require verified ReBAC credentials; LLM output can never execute administrative actions directly.
+- **Promptfoo Quality Gate**: Continuous automated evaluation suite (`promptfoo.yaml`) testing:
+  - Directional query accuracy
+  - Safety & evacuation prompt response priority
+  - Multi-language fidelity
+  - Persona injection resistance (Pass rate ≥ **95%**)
+
+```bash
+# Run Promptfoo AI Quality Gate
+npx promptfoo eval
+```
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+flowchart TB
+    subgraph ClientLayer ["Client Layer (Next.js 14 / React 19)"]
+        Landing["Marketing Landing Page (/)"]
+        GuestPWA["Zero-Install Guest PWA (/g/[venueId])"]
+        StaffPortal["Gate Staff Scan Console (/staff)"]
+        AdminDashboard["Mission Control Operator Admin (/admin)"]
+        ComplexView["Multi-Space Facility Manager (/complex)"]
+    end
+
+    subgraph SecurityLayer ["Security & Authorization"]
+        OWASP["OWASP LLM01/02 Sanitizer & Scrubber"]
+        OpenFGA["OpenFGA Zanzibar ReBAC Engine"]
+        FBRules["Firebase Security Rules"]
+    end
+
+    subgraph BackendServices ["Backend & External APIs"]
+        Gemini["Google Gemini 2.5 Flash / 1.5 Pro"]
+        PlacesAPI["Google Places Geocoding API"]
+        LocalAI["Smart Local Domain Fallback Engine"]
+    end
+
+    subgraph DatabaseLayer ["Real-Time & Document Storage"]
+        RTDB[("Firebase Realtime DB\n(Sub-Second WebSocket Sync)")]
+        Firestore[("Cloud Firestore\n(Multi-Tenant Data Store)")]
+    end
+
+    GuestPWA --> OWASP --> Gemini
+    Gemini -.->|Fallback| LocalAI
+    AdminDashboard --> OpenFGA
+    StaffPortal --> OpenFGA
+    ComplexView --> OpenFGA
+    AdminDashboard --> PlacesAPI
+    StaffPortal --> RTDB
+    GuestPWA --> RTDB
+    AdminDashboard --> Firestore
+    GuestPWA --> Firestore
+```
 
 ---
 
 ## 🛠️ Technology Stack
 
-| Component | Technology | Description |
+| Domain | Technology | Purpose |
 |---|---|---|
-| **Frontend Framework** | **Next.js 14 (App Router)** | React 19, Server & Client Components, TypeScript |
-| **Styling & UI** | **Vanilla CSS + Tailwind CSS** | Design Tokens, Mission Control Dark Mode, Glassmorphism |
-| **Realtime Database** | **Firebase Realtime Database** | Sub-second WebSocket crowd density synchronization |
-| **Document Store** | **Cloud Firestore** | Multi-tenant organizations, venues, events, incidents |
-| **Geocoding & Maps** | **Google Places API + Leaflet** | Real-world stadium search, coordinates, dark maps |
-| **Artificial Intelligence**| **Google Gemini 1.5 API** | Multilingual Q&A, route optimization, wait predictions |
-| **Fallback AI Engine** | **Smart Local Domain Engine** | Zero-latency local domain model fallback |
-| **Icons & Media** | **Lucide React** | Clean, minimalist SVG icon set |
+| **Core Framework** | **Next.js 14 (App Router)** | Full-stack React 19 framework, SSR, RSC, and Edge API Routes |
+| **Language & Typing** | **TypeScript 5** | Strict end-to-end type safety across client and server |
+| **Styling & Design System**| **Vanilla CSS Tokens + Tailwind CSS** | "Mission Control" glassmorphism, dark palette, subtle glows |
+| **Artificial Intelligence** | **Google Gemini 2.5 Flash & 1.5 Pro** | Multilingual assistant, wait time forecasting, smart navigation |
+| **AI Quality & Security** | **Promptfoo + OWASP LLM Guards** | Heuristic prompt evaluation, injection sanitization, PII scrubber |
+| **Realtime Telemetry** | **Firebase Realtime Database** | Sub-second crowd occupancy WebSocket synchronization |
+| **Data Persistence** | **Cloud Firestore** | Multi-tenant orgs, venues, complex spaces, incidents |
+| **Authorization (ReBAC)** | **OpenFGA SDK** | Zanzibar relationship-based access control for venues and spaces |
+| **Geospatial & Mapping** | **Google Places API + Leaflet.js** | Venue lookup, coordinate resolution, interactive heatmaps |
+| **Icons & Micro-Interactions**| **Lucide React** | High-density operational icons and indicators |
 
 ---
 
-## 📁 Repository Directory Structure
+## 👥 Key User Journeys
 
+### 1. The Attendee Journey
 ```
-venueflow/
-├── public/                     # Static public assets
-├── src/
-│   ├── app/
-│   │   ├── api/                # Next.js API Routes (Server-only)
-│   │   │   ├── events/         # Event management & simulation endpoints
-│   │   │   └── venues/import/  # Google Maps Places API venue import handler
-│   │   ├── g/[venueId]/        # Zero-Install Mobile Guest PWA
-│   │   ├── org/[orgId]/        # Multi-Tenant Organization Dashboard
-│   │   │   └── venue/[venueId]/
-│   │   │       ├── admin/      # Operator Command Center
-│   │   │       └── staff/      # Staff Gate Operations & Scan Check-In
-│   │   ├── onboarding/         # Setup & Organization Wizard
-│   │   ├── login/              # Secure Authentication Page
-│   │   ├── globals.css         # SaaS Design Tokens & Global CSS Utilities
-│   │   ├── layout.tsx          # Root Application Layout & Fonts
-│   │   └── page.tsx            # SaaS Marketing Landing Page
-│   ├── components/
-│   │   ├── Map/                # Leaflet Interactive Map Container & Heatmap
-│   │   ├── AIChat.tsx          # Multilingual Ask AI Component
-│   │   └── LiveRegion.tsx      # Accessibility Screen Reader Live Region
-│   ├── hooks/
-│   │   ├── useAuth.ts          # Firebase Authentication Hook
-│   │   └── useRealtimeData.ts  # RTDB & Firestore Data Subscriptions
-│   ├── lib/
-│   │   ├── crowdEngine.ts      # Pure Client Density & Math Constants
-│   │   ├── crowdEngineServer.ts# Server-Only RTDB Writes & Simulation Loops
-│   │   ├── firebase.ts         # Firebase Client SDK Initialization
-│   │   ├── firebaseAdmin.ts    # Server-Only Firebase Admin SDK
-│   │   ├── firestore.ts        # Firestore CRUD Operations
-│   │   ├── gemini.ts           # AI Assistant, OWASP Guard & Fallback Engine
-│   │   ├── inputGuard.ts       # OWASP LLM01 & LLM02 Sanitizers
-│   │   ├── modelRouter.ts      # Budget-Aware AI Model Tier Classifier
-│   │   ├── sampleData.ts       # Single MVP Demo Venue Data (MetLife Stadium)
-│   │   └── utils.ts            # Formatting Utilities & Density Colors
-│   └── types/                  # TypeScript Interfaces & Schemas
-├── firestore.rules             # Deployed Firestore Security Rules
-├── package.json
-└── tsconfig.json
+Gate QR Scan ➔ Mobile Web PWA (/g/[venueId]) ➔ Live Heatmap ➔ Shortest Queue Wait ➔ Ask Gemini AI
 ```
+- Instantly view live line lengths for restrooms, concessions, and merchandise.
+- Receive step-free accessible directions.
+- Query Gemini AI in 6 languages for immediate assistance.
+
+### 2. The Venue Operator Journey
+```
+Log In ➔ Select Venue / Complex ➔ Operator Command Center ➔ "Go Live" Simulation ➔ Emergency Broadcast
+```
+- Track real-time KPIs: Total Occupancy, Peak Zones, Open Incidents, Active Staff.
+- Step through event phases (*Doors Open ➔ Pre-Game ➔ Halftime ➔ Egress*).
+- Broadcast targeted safety notices to specific sections or the entire facility.
+
+### 3. The Multi-Space Facility Manager Journey
+```
+Facility Overview (/complex/[complexId]) ➔ Space Breakdown ➔ Shared Atrium Flow ➔ Coordinated Safety Control
+```
+- Oversee multi-hall conventions (e.g., simultaneous conferences in separate halls).
+- Monitor shared thoroughfares, elevators, and main exits to prevent cross-event bottlenecks.
 
 ---
 
 ## ⚡ Quick Start & Local Setup
 
 ### 1. Prerequisites
-- **Node.js**: v18.0.0 or higher
+- **Node.js**: `v18.0.0` or higher
 - **npm** or **yarn**
-- A **Firebase Project** (with Authentication, Firestore, and Realtime Database enabled)
-- *(Optional)* **Google Maps Places API Key** for importing real-world venues
+- A **Firebase Project** (Auth, Firestore, Realtime Database)
+- A **Google Gemini API Key** ([Google AI Studio](https://aistudio.google.com/))
+- *(Optional)* **Google Maps Places API Key**
+- *(Optional)* **Docker** (for local OpenFGA ReBAC server)
 
-### 2. Environment Configuration
+### 2. Clone and Install Dependencies
+
+```bash
+git clone https://github.com/your-username/venueflow.git
+cd venueflow
+npm install
+```
+
+### 3. Configure Environment Variables
 Create a `.env` file in the root directory:
 
 ```env
-# Firebase Client Configuration
+# Firebase Client SDK
 NEXT_PUBLIC_FIREBASE_API_KEY="AIzaSy..."
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
 NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
@@ -192,30 +242,42 @@ NEXT_PUBLIC_FIREBASE_DATABASE_URL="https://your-project-default-rtdb.firebaseio.
 # Google Gemini AI Key
 NEXT_PUBLIC_GEMINI_API_KEY="AIzaSy..."
 
-# Google Maps Places API Key (Real-World Venue Import)
+# Google Maps Places API Key (Real-World Stadium Import)
 GOOGLE_MAPS_API_KEY="AIzaSy..."
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="AIzaSy..."
+
+# OpenFGA Authorization (Optional - Defaults to fail-safe fallback)
+OPENFGA_API_URL="http://localhost:8080"
+OPENFGA_STORE_ID=""
+OPENFGA_MODEL_ID=""
 ```
 
-### 3. Installation & Development
-
+### 4. (Optional) Run Local OpenFGA with Docker
 ```bash
-# Install dependencies
-npm install
+docker run -d --name openfga -p 8080:8080 openfga/openfga run
+```
 
-# Start the Next.js development server
+### 5. Run the Development Server
+```bash
 npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to view the VenueFlow application.
+---
 
-### 4. Build & Production Verification
+## 🧪 Verification & Automated Tests
 
 ```bash
-# Type check TypeScript files
+# Run TypeScript compilation check
 npx tsc --noEmit
 
-# Create optimized production build
+# Run Jest unit and integration tests
+npm test
+
+# Run Promptfoo AI Evaluation suite
+npx promptfoo eval
+
+# Build production bundle
 npm run build
 ```
 
@@ -223,7 +285,13 @@ npm run build
 
 ## 📄 License
 
-This project is licensed under the **MIT License**.
+This project is open source and available under the [MIT License](LICENSE).
 
 ---
-*VenueFlow — Empowering Safer, Smarter, and Seamless Live Events worldwide.*
+
+<div align="center">
+
+**Built with ❤️ for Google for Developers PromptWars Virtual Hackathon.**  
+*VenueFlow — Empowering Safer, Smarter, and Seamless Live Events Worldwide.*
+
+</div>
