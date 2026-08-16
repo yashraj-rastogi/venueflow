@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Activity, AlertTriangle, Bot, CheckCircle, Clock, Loader2, LogOut, MapPin, Navigation, Sparkles, Wifi, WifiOff } from 'lucide-react';
 import { useCrowdData, useNotifications, useVenueData } from '@/hooks/useRealtimeData';
@@ -30,7 +30,7 @@ const LANGS: Record<string, { label: string; placeholder: string; greeting: stri
   pt: { label: '🇧🇷 PT', placeholder: 'Pergunte sobre o estádio...', greeting: 'Olá! Como posso ajudar?' },
   fr: { label: '🇫🇷 FR', placeholder: 'Posez une question...', greeting: 'Bonjour! Comment puis-je vous aider?' },
   hi: { label: '🇮🇳 HI', placeholder: 'स्टेडियम के बारे में पूछें...', greeting: 'नमस्ते! मैं कैसे मदद करूँ?' },
-  ar: { label: '🇸🇦 AR', placeholder: '...اسأل عن الملعب', greeting: '!مرحبا! كيف يمكنني مساعدتك' },
+  ar: { label: '🇸🇦 AR', placeholder: '...اسأل عن الملعب', greeting: '!मرحبا! كيف يمكنني مساعدتك' },
 };
 
 const AMENITY_ICONS: Record<string, string> = { restroom: '🚻', concession: '🍕', merchandise: '👕', gate: '🚪', elevator: '🛗' };
@@ -40,7 +40,7 @@ const QUICK_ASKS: Record<string, string[]> = {
   es: ['¿Baño más cercano?', '¿Zona menos concurrida?', '♿ Acceso silla de ruedas'],
 };
 
-export default function GuestPWA() {
+function GuestPWAContent() {
   const { venueId }    = useParams<{ venueId: string }>();
   const searchParams   = useSearchParams();
   const router         = useRouter();
@@ -432,5 +432,17 @@ export default function GuestPWA() {
         <p style={{ fontSize: '0.65rem', color: 'var(--text-4)' }}>Powered by <strong style={{ color: 'var(--text-3)' }}>VenueFlow</strong></p>
       </footer>
     </div>
+  );
+}
+
+export default function GuestPWA() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100dvh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Loader2 size={24} color="var(--brand-light)" style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    }>
+      <GuestPWAContent />
+    </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, Loader2, MapPin } from 'lucide-react';
 
@@ -18,7 +18,7 @@ import { CheckCircle, Loader2, MapPin } from 'lucide-react';
  *
  * Total UX friction: ~1.5 seconds — invisible to the user in practice.
  */
-export default function LocationUpdatePage() {
+function LocationUpdateContent() {
   const params       = useParams();
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -148,5 +148,30 @@ export default function LocationUpdatePage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function LocationUpdatePage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        minHeight     : '100dvh',
+        background    : 'var(--bg)',
+        display       : 'flex',
+        flexDirection : 'column',
+        alignItems    : 'center',
+        justifyContent: 'center',
+        fontFamily    : 'Inter, sans-serif',
+        color         : 'var(--text-1)',
+        gap           : '1rem',
+        padding       : '2rem',
+        textAlign     : 'center',
+      }}>
+        <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-light)' }} />
+        <p style={{ fontSize: '0.9375rem', color: 'var(--text-3)' }}>Updating your location…</p>
+      </div>
+    }>
+      <LocationUpdateContent />
+    </Suspense>
   );
 }

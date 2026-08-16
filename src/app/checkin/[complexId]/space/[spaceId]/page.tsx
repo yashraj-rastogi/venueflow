@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { Activity, CheckCircle, Loader2, MapPin, QrCode, Users } from 'lucide-react';
 import type { VenueComplex, VenueSpace, SpaceEvent } from '@/types';
@@ -18,7 +18,7 @@ import type { VenueComplex, VenueSpace, SpaceEvent } from '@/types';
  *   5. Stores sessionId in sessionStorage
  *   6. Redirects to /g/{complexId}/{spaceId}?session={id}
  */
-export default function ComplexSpaceCheckinPage() {
+function ComplexSpaceCheckinContent() {
   const params       = useParams<{ complexId: string; spaceId: string }>();
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -216,5 +216,17 @@ export default function ComplexSpaceCheckinPage() {
         <p style={{ fontSize: '0.65rem', color: 'var(--text-4)' }}>Powered by <strong style={{ color: 'var(--text-3)' }}>VenueFlow</strong></p>
       </footer>
     </div>
+  );
+}
+
+export default function ComplexSpaceCheckinPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-light)' }} />
+      </div>
+    }>
+      <ComplexSpaceCheckinContent />
+    </Suspense>
   );
 }

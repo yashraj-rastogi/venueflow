@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Activity, AlertTriangle, Bell, BellOff, Bot, Building2, CheckCircle, Clock, Loader2, LogOut, MapPin, Wifi, WifiOff } from 'lucide-react';
 import { useSpaceCrowd, useComplexNotifications } from '@/hooks/useRealtimeData';
@@ -27,7 +27,7 @@ type Tab = 'map' | 'waittimes' | 'alerts' | 'chat';
  * Shows ONLY crowd data for the guest's space — other spaces are invisible.
  * Receives both space-scoped and complex-wide alerts via useComplexNotifications.
  */
-export default function GuestComplexPWA() {
+function GuestComplexPWAContent() {
   const params       = useParams<{ complexId: string; spaceId: string }>();
   const searchParams = useSearchParams();
 
@@ -314,5 +314,17 @@ export default function GuestComplexPWA() {
         <p style={{ fontSize: '0.65rem', color: 'var(--text-4)' }}>Powered by <strong style={{ color: 'var(--text-3)' }}>VenueFlow</strong></p>
       </footer>
     </div>
+  );
+}
+
+export default function GuestComplexPWA() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-light)' }} />
+      </div>
+    }>
+      <GuestComplexPWAContent />
+    </Suspense>
   );
 }
