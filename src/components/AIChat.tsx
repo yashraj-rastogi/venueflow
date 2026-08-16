@@ -143,29 +143,29 @@ export default function AIChat({ venueName, avgDensity, initialOpen = true }: AI
       <button
         onClick={() => setOpen(o => !o)}
         className="btn-ghost"
-        style={{ width: '100%', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: 12, border: '1px solid rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.06)' }}
+        style={{ width: '100%', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: 12, border: '1px solid rgba(234,88,12,0.25)', background: 'rgba(234,88,12,0.06)' }}
         aria-expanded={open}
         aria-controls="ai-chat-panel"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Bot size={15} color="var(--blue-soft)" />
-          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--blue-soft)' }}>AI Venue Assistant</span>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-4)', fontWeight: 400 }}>— multilingual</span>
+          <Bot size={15} color="var(--brand)" />
+          <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--brand-text)' }}>AI Venue Assistant</span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', fontWeight: 400 }}>— multilingual</span>
         </div>
         {open ? <ChevronUp size={14} color="var(--text-3)" /> : <ChevronDown size={14} color="var(--text-3)" />}
       </button>
 
       {/* Chat body */}
       {open && (
-        <div id="ai-chat-panel" className="anim-fade-up" style={{ marginTop: '0.5rem', background: 'var(--bg-1)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+        <div id="ai-chat-panel" className="anim-fade-up" style={{ marginTop: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
           {/* Language selector bar */}
-          <div style={{ borderBottom: '1px solid var(--border)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-4)' }}>Language</span>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-2)' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', fontWeight: 600 }}>Language</span>
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowLangMenu(v => !v)}
                 className="btn-ghost"
-                style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', gap: '0.3rem' }}
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', gap: '0.3rem', background: 'var(--surface)' }}
                 aria-haspopup="listbox"
                 aria-expanded={showLangMenu}
                 aria-label="Select language"
@@ -176,7 +176,7 @@ export default function AIChat({ venueName, avgDensity, initialOpen = true }: AI
                 <div
                   role="listbox"
                   aria-label="Language options"
-                  style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 10, padding: '0.25rem', zIndex: 50, minWidth: 160 }}
+                  style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '0.25rem', zIndex: 50, minWidth: 160, boxShadow: 'var(--shadow-lg)' }}
                 >
                   {Object.entries(SUPPORTED_LANGUAGES).map(([code, label]) => (
                     <button
@@ -184,7 +184,7 @@ export default function AIChat({ venueName, avgDensity, initialOpen = true }: AI
                       role="option"
                       aria-selected={language === code}
                       onClick={() => { setLanguage(code); setShowLangMenu(false); }}
-                      style={{ width: '100%', textAlign: 'left', padding: '0.4rem 0.6rem', background: language === code ? 'rgba(59,130,246,0.12)' : 'transparent', border: 'none', borderRadius: 7, fontSize: '0.75rem', color: language === code ? 'var(--blue-soft)' : 'var(--text-2)', cursor: 'pointer' }}
+                      style={{ width: '100%', textAlign: 'left', padding: '0.4rem 0.6rem', background: language === code ? 'var(--brand-bg)' : 'transparent', border: 'none', borderRadius: 7, fontSize: '0.75rem', color: language === code ? 'var(--brand)' : 'var(--text-1)', fontWeight: language === code ? 700 : 400, cursor: 'pointer' }}
                     >
                       {label}
                     </button>
@@ -195,21 +195,22 @@ export default function AIChat({ venueName, avgDensity, initialOpen = true }: AI
           </div>
 
           {/* Messages */}
-          <div style={{ height: 220, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }} aria-live="polite" aria-label="Chat messages">
+          <div style={{ height: 220, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.625rem', background: 'var(--bg)' }} aria-live="polite" aria-label="Chat messages">
             {messages.map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
                   maxWidth: '85%', padding: '0.5rem 0.875rem',
                   borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                  background: m.role === 'user' ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'var(--bg-3)',
+                  background: m.role === 'user' ? 'linear-gradient(135deg, #ea580c, #f97316)' : 'var(--surface)',
                   border: m.role === 'ai' ? '1px solid var(--border)' : 'none',
-                  fontSize: '0.8125rem', color: m.role === 'user' ? '#fff' : 'var(--text-2)', lineHeight: 1.55,
+                  fontSize: '0.8125rem', color: m.role === 'user' ? '#fff' : 'var(--text-1)', lineHeight: 1.55,
                   direction: language === 'ar' ? 'rtl' : 'ltr',
+                  boxShadow: 'var(--shadow-sm)',
                 }}>
                   {m.text === '...' ? (
                     <span style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                       {[0, 0.15, 0.3].map((d, i) => (
-                        <span key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--text-4)', display: 'inline-block', animation: `pulse 1.2s ease-in-out ${d}s infinite` }} />
+                        <span key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--text-3)', display: 'inline-block', animation: `pulse 1.2s ease-in-out ${d}s infinite` }} />
                       ))}
                     </span>
                   ) : m.text}
@@ -221,9 +222,9 @@ export default function AIChat({ venueName, avgDensity, initialOpen = true }: AI
 
           {/* Suggestions (shown only on first message) */}
           {messages.length === 1 && (
-            <div style={{ padding: '0 1rem 0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+            <div style={{ padding: '0.5rem 1rem 0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.375rem', background: 'var(--bg)' }}>
               {suggestions.map(s => (
-                <button key={s} onClick={() => setInput(s)} className="btn-ghost" style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: 20 }}>
+                <button key={s} onClick={() => setInput(s)} className="btn-ghost" style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: 20, background: 'var(--surface)' }}>
                   {s}
                 </button>
               ))}
@@ -231,7 +232,7 @@ export default function AIChat({ venueName, avgDensity, initialOpen = true }: AI
           )}
 
           {/* Input row */}
-          <div style={{ borderTop: '1px solid var(--border)', padding: '0.625rem 0.875rem', display: 'flex', gap: '0.5rem' }}>
+          <div style={{ borderTop: '1px solid var(--border)', padding: '0.625rem 0.875rem', display: 'flex', gap: '0.5rem', background: 'var(--surface)' }}>
             <input
               className="input-dark"
               placeholder={language === 'ar' ? 'اكتب سؤالك...' : language === 'hi' ? 'प्रश्न टाइप करें...' : 'Ask about crowd levels, wait times...'}
@@ -246,11 +247,11 @@ export default function AIChat({ venueName, avgDensity, initialOpen = true }: AI
               onClick={recording ? stopRecording : startRecording}
               disabled={loading}
               className={recording ? 'btn-glow' : 'btn-ghost'}
-              style={{ padding: '0.5rem 0.625rem', borderRadius: 9, opacity: loading ? 0.5 : 1, background: recording ? '#ef444420' : undefined, borderColor: recording ? '#ef4444' : undefined }}
+              style={{ padding: '0.5rem 0.625rem', borderRadius: 9, opacity: loading ? 0.5 : 1, background: recording ? 'rgba(220,38,38,0.12)' : undefined, borderColor: recording ? '#dc2626' : undefined }}
               aria-label={recording ? 'Stop recording' : 'Start voice input'}
               aria-pressed={recording}
             >
-              {recording ? <MicOff size={13} color="#ef4444" /> : <Mic size={13} />}
+              {recording ? <MicOff size={13} color="#dc2626" /> : <Mic size={13} />}
             </button>
             {/* Send button */}
             <button

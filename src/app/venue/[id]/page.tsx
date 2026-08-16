@@ -252,7 +252,7 @@ export default function VenueDashboardPage() {
         {/* ── Top header bar ──────────────────────────────────────────────── */}
         <header style={{
           position: 'sticky', top: 0, zIndex: 30,
-          background: 'rgba(8,12,24,0.9)',
+          background: 'rgba(250,248,245,0.92)',
           backdropFilter: 'blur(20px)',
           borderBottom: '1px solid var(--border)',
           padding: '0 1.75rem',

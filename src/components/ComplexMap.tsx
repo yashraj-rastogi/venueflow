@@ -37,11 +37,11 @@ export default function ComplexMap({
   const polygonsRef  = useRef<Map<string, any>>(new Map());
 
   function densityColor(spaceId: string, isShared: boolean): string {
-    if (isShared) return '#6366F1';
+    if (isShared) return '#d97706';
     const d = crowdData[spaceId]?.density ?? 0;
-    if (d > 0.75) return '#EF4444';
-    if (d > 0.50) return '#F59E0B';
-    return '#10B981';
+    if (d > 0.75) return '#dc2626';
+    if (d > 0.50) return '#d97706';
+    return '#15803d';
   }
 
   // Initialize Leaflet on mount
@@ -66,8 +66,8 @@ export default function ComplexMap({
         scrollWheelZoom: true,
       });
 
-      // Dark tile layer matching the Mission Control aesthetic
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // Warm CartoDB Voyager tiles
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap © CARTO',
         maxZoom    : 22,
         subdomains : 'abcd',
@@ -83,25 +83,20 @@ export default function ComplexMap({
         const density = crowdData[space.id]?.density ?? 0;
 
         const poly = L.polygon(latlngs, {
-          color       : isMe ? '#fff' : color,
+          color       : isMe ? '#ea580c' : color,
           fillColor   : color,
-          fillOpacity : isMe ? 0.55 : 0.35,
+          fillOpacity : isMe ? 0.45 : 0.25,
           weight      : isMe ? 3 : 1.5,
           dashArray   : isMe ? '6 3' : undefined,
         }).addTo(map);
 
         // Tooltip
-        const event = Object.values(crowdData).find((_, i) =>
-          Object.keys(crowdData)[i] === space.id,
-        );
-        const eventName = (crowdData[space.id] as (SpaceCrowdSlice & { eventId?: string }))?.eventId ?? '';
-
         poly.bindTooltip(
-          `<div style="font-family:Inter,sans-serif;font-size:0.78rem;font-weight:700;color:#fff">
+          `<div style="font-family:Inter,sans-serif;font-size:0.78rem;font-weight:700;color:#201712">
             ${space.name}
-            ${isMe ? '<br/><span style="color:#22c55e">📍 You are here</span>' : ''}
+            ${isMe ? '<br/><span style="color:#ea580c">📍 You are here</span>' : ''}
           </div>
-          <div style="font-family:Inter,sans-serif;font-size:0.72rem;color:${color};margin-top:2px">
+          <div style="font-family:Inter,sans-serif;font-size:0.72rem;color:${color};margin-top:2px;font-weight:600">
             ${Math.round(density * 100)}% capacity
           </div>`,
           { permanent: false, direction: 'top', className: 'leaflet-dark-tooltip' },
@@ -144,9 +139,9 @@ export default function ComplexMap({
       const isMe  = spaceId === mySpaceId;
 
       poly.setStyle({
-        color      : isMe ? '#fff' : color,
+        color      : isMe ? '#ea580c' : color,
         fillColor  : color,
-        fillOpacity: isMe ? 0.55 : 0.35,
+        fillOpacity: isMe ? 0.45 : 0.25,
         weight     : isMe ? 3 : 1.5,
         dashArray  : isMe ? '6 3' : undefined,
       });
@@ -161,17 +156,17 @@ export default function ComplexMap({
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <style>{`
         .leaflet-dark-tooltip {
-          background: rgba(15,17,26,0.92) !important;
-          border: 1px solid rgba(255,255,255,0.12) !important;
+          background: #ffffff !important;
+          border: 1px solid #e5ddd0 !important;
           border-radius: 8px !important;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
-          padding: 6px 10px !important;
+          box-shadow: 0 4px 14px rgba(32,23,18,0.12) !important;
+          padding: 8px 12px !important;
         }
         .leaflet-dark-tooltip::before { display: none; }
       `}</style>
       <div
         ref={mapRef}
-        style={{ width: '100%', height: '100%', borderRadius: 'inherit', background: '#0f111a' }}
+        style={{ width: '100%', height: '100%', borderRadius: 'inherit', background: '#f4ede4' }}
         aria-label={`Indoor map of ${complex.name}`}
         role="img"
       />

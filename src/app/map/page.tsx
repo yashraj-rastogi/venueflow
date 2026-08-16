@@ -29,11 +29,11 @@ export default function StandaloneMapPage() {
     <div style={{ height: '100vh', width: '100vw', position: 'relative', overflow: 'hidden' }}>
       {/* Top Header */}
       <div style={{ position: 'absolute', top: 20, left: 20, right: 20, zIndex: 500, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none' }}>
-        <div className="card-hi" style={{ pointerEvents: 'auto', padding: '0.75rem 1.25rem', backdropFilter: 'blur(12px)', background: 'rgba(8,12,24,0.75)' }}>
-          <h1 style={{ fontSize: '1rem', fontWeight: 800 }}>{venue.name} Live Map</h1>
+        <div className="card-hi" style={{ pointerEvents: 'auto', padding: '0.75rem 1.25rem', backdropFilter: 'blur(12px)', background: 'rgba(255,255,255,0.92)' }}>
+          <h1 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-1)' }}>{venue.name} Live Map</h1>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>Real-time Crowd Density</p>
         </div>
-        <Link href={`/venue/${venue.id}`} className="btn-ghost card-hi" style={{ pointerEvents: 'auto', textDecoration: 'none', background: 'rgba(8,12,24,0.75)' }}>
+        <Link href={`/venue/${venue.id}`} className="btn-ghost card-hi" style={{ pointerEvents: 'auto', textDecoration: 'none', background: 'rgba(255,255,255,0.92)' }}>
           Exit Map View
         </Link>
       </div>
@@ -44,7 +44,7 @@ export default function StandaloneMapPage() {
       {selectedZone && selectedInfo && selectedData && (
         <div className="anim-fade-in card-hi" style={{ 
           position: 'absolute', right: 20, top: 80, width: 300, zIndex: 500,
-          background: 'rgba(12,16,33,0.9)', backdropFilter: 'blur(16px)'
+          background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(16px)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
             <div>

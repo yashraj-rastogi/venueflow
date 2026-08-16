@@ -43,7 +43,7 @@ export default function HomePage() {
       <nav style={{
         position: 'sticky', top: 0, zIndex: 50,
         borderBottom: '1px solid var(--border)',
-        background: 'rgba(9,9,11,0.90)',
+        background: 'rgba(250,248,245,0.92)',
         backdropFilter: 'blur(16px)',
       }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 1.5rem', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -193,8 +193,8 @@ export default function HomePage() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
             >
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--brand-bg)', border: '1px solid rgba(37,99,235,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-                <Icon size={17} color="var(--brand-light)" />
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--brand-bg)', border: '1px solid rgba(234,88,12,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+                <Icon size={17} color="var(--brand)" />
               </div>
               <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-1)', marginBottom: '0.5rem' }}>{title}</h3>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-2)', lineHeight: 1.6 }}>{desc}</p>

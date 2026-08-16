@@ -21,13 +21,13 @@ function makeAmenityIcon(type: string) {
   };
   return L.divIcon({
     html: `<div style="
-      background:#1a213a;
-      border:1.5px solid #b4c5ff55;
+      background:#ffffff;
+      border:1.5px solid #ea580c;
       border-radius:50%;
       width:28px;height:28px;
       display:flex;align-items:center;justify-content:center;
       font-size:13px;
-      box-shadow:0 0 10px #2563eb44;
+      box-shadow:0 2px 8px rgba(234,88,12,0.25);
     ">${emoji[type] ?? '📍'}</div>`,
     className: '',
     iconSize: [28, 28],
@@ -106,13 +106,13 @@ export default function VenueMap({ venue, crowd }: Props) {
     <MapContainer
       center={[vLat, vLng]}
       zoom={15}
-      style={{ height: '100%', width: '100%', borderRadius: '12px', background: '#0e1322' }}
+      style={{ height: '100%', width: '100%', borderRadius: '12px', background: '#f4ede4' }}
       zoomControl={false}
       attributionControl={false}
     >
-      {/* ─── CartoDB Dark Matter tiles ──────────────────────────────────────── */}
+      {/* ─── CartoDB Voyager tiles (warm light map) ─────────────────────────── */}
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org">OSM</a> &copy; <a href="https://carto.com">CARTO</a>'
         maxZoom={19}
         subdomains="abcd"
@@ -125,7 +125,7 @@ export default function VenueMap({ venue, crowd }: Props) {
       <Circle
         center={[vLat, vLng]}
         radius={zoneRadiusM * 1.6}
-        pathOptions={{ color: '#b4c5ff', fillColor: '#b4c5ff', fillOpacity: 0.04, weight: 1, opacity: 0.2, dashArray: '4 6' }}
+        pathOptions={{ color: '#ea580c', fillColor: '#ea580c', fillOpacity: 0.04, weight: 1, opacity: 0.2, dashArray: '4 6' }}
       />
 
       {/* ─── Zone density circles (meter-based, zoom-aware) ─────────────────── */}
@@ -150,19 +150,19 @@ export default function VenueMap({ venue, crowd }: Props) {
             }}
           >
             <Tooltip permanent direction="center" className="leaflet-zone-label">
-              <span style={{ color, fontWeight: 700, fontSize: 11, textShadow: '0 0 4px #000' }}>
+              <span style={{ color, fontWeight: 700, fontSize: 11, textShadow: '0 0 3px #ffffff, 0 0 6px #ffffff' }}>
                 {(zone.name || 'Zone').split(' ')[0]}<br />{formatPercent(density)}
               </span>
             </Tooltip>
             <Popup>
-              <div style={{ background: '#161b2b', color: '#dee1f7', padding: 10, borderRadius: 8, minWidth: 170 }}>
+              <div style={{ background: '#ffffff', color: '#201712', padding: 12, borderRadius: 10, minWidth: 170, boxShadow: '0 4px 14px rgba(32,23,18,0.12)' }}>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>{zone.name || 'Zone'}</div>
                 <div style={{ color, fontSize: 22, fontWeight: 800 }}>{formatPercent(density)}</div>
-                <div style={{ color: '#8d90a0', fontSize: 12, marginTop: 2 }}>
+                <div style={{ color: '#5c4c40', fontSize: 12, marginTop: 2 }}>
                   {count.toLocaleString()} / {(zone.capacity || 10000).toLocaleString()} guests
                 </div>
                 {zone.isStepFree && (
-                  <div style={{ color: '#10B981', fontSize: 11, marginTop: 4 }}>♿ Step-free access</div>
+                  <div style={{ color: '#15803d', fontSize: 11, marginTop: 4, fontWeight: 600 }}>♿ Step-free access</div>
                 )}
               </div>
             </Popup>
@@ -180,18 +180,18 @@ export default function VenueMap({ venue, crowd }: Props) {
             icon={makeAmenityIcon(amenity.type)}
           >
             <Popup>
-              <div style={{ background: '#161b2b', color: '#dee1f7', padding: 10, borderRadius: 8, minWidth: 160 }}>
-                <div style={{ fontSize: 11, color: '#8d90a0', textTransform: 'uppercase', letterSpacing: 1 }}>{amenity.type}</div>
+              <div style={{ background: '#ffffff', color: '#201712', padding: 12, borderRadius: 10, minWidth: 160, boxShadow: '0 4px 14px rgba(32,23,18,0.12)' }}>
+                <div style={{ fontSize: 11, color: '#8c7b6d', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>{amenity.type}</div>
                 <div style={{ fontWeight: 700, marginBottom: 6, marginTop: 2 }}>{amenity.name}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: amenity.isOpen ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ color: amenity.isOpen ? '#15803d' : '#dc2626', fontSize: 12, fontWeight: 600 }}>
                     {amenity.isOpen ? 'Open' : 'Closed'}
                   </span>
-                  <span style={{ color: '#b4c5ff', fontSize: 18, fontWeight: 800 }}>
+                  <span style={{ color: '#ea580c', fontSize: 18, fontWeight: 800 }}>
                     {formatWaitTime(amenity.waitTime)}
                   </span>
                 </div>
-                <div style={{ color: '#8d90a0', fontSize: 11, marginTop: 2 }}>current wait</div>
+                <div style={{ color: '#8c7b6d', fontSize: 11, marginTop: 2 }}>current wait</div>
               </div>
             </Popup>
           </Marker>

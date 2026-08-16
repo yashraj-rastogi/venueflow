@@ -217,7 +217,7 @@ export default function GuestVenueSelectorPage() {
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-4)' }}>Concurrent event spaces</span>
                 </div>
 
-                <div style={{ background: 'var(--surface)', border: '1px solid color-mix(in srgb, var(--brand) 35%, var(--border))', borderRadius: 16, padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid color-mix(in srgb, var(--brand) 35%, var(--border))', borderRadius: 16, padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow)' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                     <div>
                       <h2 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--text-1)' }}>{SAMPLE_COMPLEX.name}</h2>
