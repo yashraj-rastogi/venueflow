@@ -5,13 +5,13 @@ import { Activity, CheckCircle, Loader2, MapPin, QrCode, Users } from 'lucide-re
 import type { VenueComplex, VenueSpace, SpaceEvent } from '@/types';
 
 /**
- * /checkin/[complexId]/space/[spaceId]?event=eventId
+ * /checkin/[venueId]/space/[spaceId]?event=eventId
  *
  * Gate-level QR check-in page for a specific space inside a complex.
  * This is the URL printed on entrance QR codes at each hall / auditorium door.
  *
  * Flow:
- *   1. Reads complexId, spaceId, eventId from URL
+ *   1. Reads complexId (from params.venueId), spaceId, eventId from URL
  *   2. Fetches complex + space + event details from /api/complex
  *   3. Shows building → floor → space → event info
  *   4. "Check In" → POST /api/checkin with full complex context
@@ -19,12 +19,13 @@ import type { VenueComplex, VenueSpace, SpaceEvent } from '@/types';
  *   6. Redirects to /g/{complexId}/{spaceId}?session={id}
  */
 function ComplexSpaceCheckinContent() {
-  const params       = useParams<{ complexId: string; spaceId: string }>();
+  const params       = useParams<{ venueId?: string; complexId?: string; spaceId: string }>();
   const searchParams = useSearchParams();
   const router       = useRouter();
 
-  const { complexId, spaceId } = params;
-  const eventId = searchParams?.get('event') ?? undefined;
+  const complexId = params?.venueId || params?.complexId || '';
+  const spaceId   = params?.spaceId || '';
+  const eventId   = searchParams?.get('event') ?? undefined;
 
   const [complex,   setComplex]   = useState<VenueComplex | null>(null);
   const [space,     setSpace]     = useState<VenueSpace | null>(null);
@@ -44,8 +45,8 @@ function ComplexSpaceCheckinContent() {
         setComplex(data.complex);
         const foundSpace = (data.spaces as VenueSpace[]).find(s => s.id === spaceId);
         setSpace(foundSpace ?? null);
-        if (eventId && data.liveEvents) {
-          const foundEvent = (data.liveEvents as SpaceEvent[]).find(e => e.id === eventId || e.spaceId === spaceId);
+        if (data.liveEvents) {
+          const foundEvent = (data.liveEvents as SpaceEvent[]).find(e => (eventId && e.id === eventId) || e.spaceId === spaceId);
           setEvent(foundEvent ?? null);
         }
       })

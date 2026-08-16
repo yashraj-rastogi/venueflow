@@ -5,7 +5,7 @@
  */
 import { ref, get, set } from 'firebase/database';
 import { db } from '@/lib/firebase';
-import { SAMPLE_VENUES } from '@/lib/sampleData';
+import { SAMPLE_VENUES, SAMPLE_COMPLEX, SAMPLE_SPACES, SAMPLE_COMPLEX_CROWD } from '@/lib/sampleData';
 import { getVenueById } from '@/lib/firestore';
 import { Venue } from '@/types';
 
@@ -114,8 +114,29 @@ export async function ensureVenueSeeded(venueId: string, customVenue?: Venue): P
 }
 
 /**
+ * Ensure complex crowd data is seeded in RTDB.
+ * Called when a complex or space page loads.
+ */
+export async function ensureComplexSeeded(complexId: string): Promise<void> {
+  try {
+    const exists = await pathExists(`complex_crowd/${complexId}`);
+    if (exists) return;
+
+    if (complexId === 'bharat-mandap' || complexId === SAMPLE_COMPLEX.id) {
+      await set(ref(db, `complex_crowd/${complexId}`), SAMPLE_COMPLEX_CROWD);
+      console.info(`[VenueFlow] Seeded complex ${complexId} to Firebase RTDB ✓`);
+    }
+  } catch (err) {
+    console.warn('[VenueFlow] Complex seed failed (non-fatal):', err);
+  }
+}
+
+/**
  * Seed all venues at once (called from home page).
  */
 export async function ensureAllVenuesSeeded(): Promise<void> {
-  await Promise.all(SAMPLE_VENUES.map(v => ensureVenueSeeded(v.id)));
+  await Promise.all([
+    ...SAMPLE_VENUES.map(v => ensureVenueSeeded(v.id)),
+    ensureComplexSeeded('bharat-mandap'),
+  ]);
 }

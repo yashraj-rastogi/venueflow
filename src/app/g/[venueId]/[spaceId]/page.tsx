@@ -21,17 +21,18 @@ const ComplexMap = dynamic(() => import('@/components/ComplexMap'), {
 type Tab = 'map' | 'waittimes' | 'alerts' | 'chat';
 
 /**
- * /g/[complexId]/[spaceId]
+ * /g/[venueId]/[spaceId]
  *
  * Guest PWA scoped to a single event space within a complex building.
  * Shows ONLY crowd data for the guest's space — other spaces are invisible.
  * Receives both space-scoped and complex-wide alerts via useComplexNotifications.
  */
 function GuestComplexPWAContent() {
-  const params       = useParams<{ complexId: string; spaceId: string }>();
+  const params       = useParams<{ venueId?: string; complexId?: string; spaceId: string }>();
   const searchParams = useSearchParams();
 
-  const { complexId, spaceId } = params;
+  const complexId = params?.venueId || params?.complexId || '';
+  const spaceId   = params?.spaceId || '';
   const sessionId = searchParams?.get('session') ?? undefined;
 
   const { crowd, loading: crowdLoading } = useSpaceCrowd(complexId, spaceId);

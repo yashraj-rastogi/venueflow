@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminFirestore, adminDb } from '@/lib/firebaseAdmin';
+import { SAMPLE_SPACE_EVENTS } from '@/lib/sampleData';
 
 /**
  * GET /api/space-events?complexId=X&spaceId=Y
@@ -26,16 +27,31 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'complexId is required' }, { status: 400 });
     }
 
-    let query = adminFirestore
-      .collection('space_events')
-      .where('complexId', '==', complexId) as FirebaseFirestore.Query;
+    try {
+      let query = adminFirestore
+        .collection('space_events')
+        .where('complexId', '==', complexId) as FirebaseFirestore.Query;
 
-    if (spaceId) query = query.where('spaceId', '==', spaceId);
+      if (spaceId) query = query.where('spaceId', '==', spaceId);
 
-    const snap = await query.orderBy('date', 'desc').limit(50).get();
-    const events = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const snap = await query.orderBy('date', 'desc').limit(50).get();
+      if (!snap.empty) {
+        const events = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        return NextResponse.json({ ok: true, events });
+      }
+    } catch (dbErr) {
+      console.warn('[SpaceEvents GET] Firestore query failed, checking demo fallback:', dbErr);
+    }
 
-    return NextResponse.json({ ok: true, events });
+    // Demo Fallback for bharat-mandap
+    if (complexId === 'bharat-mandap') {
+      const filtered = SAMPLE_SPACE_EVENTS.filter(e =>
+        e.complexId === complexId && (!spaceId || e.spaceId === spaceId)
+      );
+      return NextResponse.json({ ok: true, events: filtered });
+    }
+
+    return NextResponse.json({ ok: true, events: [] });
   } catch (err) {
     console.error('[SpaceEvents GET]', err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });

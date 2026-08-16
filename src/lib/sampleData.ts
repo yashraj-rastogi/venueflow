@@ -213,11 +213,11 @@ export const SAMPLE_SPACE_EVENTS: SpaceEvent[] = [
 export const SAMPLE_COMPLEX_CROWD = {
   totalCount: 2870,
   shared: {
-    'corridor-north': { density: 0.68, count: 272, capacity: 400, status: 'warning', spaceName: 'North Corridor & Elevators (Shared)' },
+    'corridor-north': { spaceId: 'corridor-north', density: 0.68, count: 272, capacity: 400, status: 'warning' as const, spaceName: 'North Corridor & Elevators (Shared)' },
   },
   spaces: {
-    'hall-1-ground': { eventId: 'evt-keynote',  orgId: 'nasscom',               density: 0.82, count: 1476, capacity: 2000, status: 'congested' },
-    'hall-a-floor1': { eventId: 'evt-ai-track', orgId: 'google-deepmind-india', density: 0.74, count: 370,  capacity: 500,  status: 'warning'   },
-    'hall-b-floor1': { eventId: 'evt-expo',     orgId: 'ispirt',                density: 0.47, count: 376,  capacity: 800,  status: 'normal'    },
+    'hall-1-ground': { spaceId: 'hall-1-ground', eventId: 'evt-keynote',  orgId: 'nasscom',               density: 0.82, count: 1476, capacity: 2000, status: 'congested' as const, spaceName: 'Hall 1 — Main Plenary Auditorium' },
+    'hall-a-floor1': { spaceId: 'hall-a-floor1', eventId: 'evt-ai-track', orgId: 'google-deepmind-india', density: 0.74, count: 370,  capacity: 500,  status: 'warning' as const,   spaceName: 'Hall A — Technical Track' },
+    'hall-b-floor1': { spaceId: 'hall-b-floor1', eventId: 'evt-expo',     orgId: 'ispirt',                density: 0.47, count: 376,  capacity: 800,  status: 'normal' as const,    spaceName: 'Hall B — Startup Expo' },
   },
 };

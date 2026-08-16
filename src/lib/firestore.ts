@@ -21,6 +21,7 @@ import {
   GuestSession, Venue, StaffRole,
   VenueComplex, VenueSpace, SpaceEvent, AnalyticsSnapshot,
 } from '@/types';
+import { SAMPLE_COMPLEX, SAMPLE_SPACES, SAMPLE_SPACE_EVENTS } from '@/lib/sampleData';
 
 export const db = getFirestore(app);
 
@@ -233,8 +234,18 @@ export async function updateGuestSession(sessionId: string, data: Partial<GuestS
 // ── VenueComplex CRUD ─────────────────────────────────────────────────────────
 
 export async function getComplex(complexId: string): Promise<VenueComplex | null> {
-  const snap = await getDoc(doc(db, 'venue_complexes', complexId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } as VenueComplex : null;
+  try {
+    const snap = await getDoc(doc(db, 'venue_complexes', complexId));
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as VenueComplex;
+    }
+  } catch (err) {
+    console.debug('[firestore] getComplex fallback:', err);
+  }
+  if (complexId === 'bharat-mandap' || complexId === SAMPLE_COMPLEX.id) {
+    return SAMPLE_COMPLEX;
+  }
+  return null;
 }
 
 export async function createComplex(data: Omit<VenueComplex, 'id'>): Promise<string> {
@@ -251,13 +262,33 @@ export async function updateComplex(complexId: string, data: Partial<VenueComple
 // ── VenueSpace CRUD ───────────────────────────────────────────────────────────
 
 export async function getComplexSpaces(complexId: string): Promise<VenueSpace[]> {
-  const snaps = await getDocs(spacesCol(complexId));
-  return snaps.docs.map(d => ({ id: d.id, ...d.data() }) as VenueSpace);
+  try {
+    const snaps = await getDocs(spacesCol(complexId));
+    if (!snaps.empty) {
+      return snaps.docs.map(d => ({ id: d.id, ...d.data() }) as VenueSpace);
+    }
+  } catch (err) {
+    console.debug('[firestore] getComplexSpaces fallback:', err);
+  }
+  if (complexId === 'bharat-mandap') {
+    return SAMPLE_SPACES;
+  }
+  return [];
 }
 
 export async function getSpace(complexId: string, spaceId: string): Promise<VenueSpace | null> {
-  const snap = await getDoc(doc(db, `venue_complexes/${complexId}/spaces`, spaceId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } as VenueSpace : null;
+  try {
+    const snap = await getDoc(doc(db, `venue_complexes/${complexId}/spaces`, spaceId));
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as VenueSpace;
+    }
+  } catch (err) {
+    console.debug('[firestore] getSpace fallback:', err);
+  }
+  if (complexId === 'bharat-mandap') {
+    return SAMPLE_SPACES.find(s => s.id === spaceId) ?? null;
+  }
+  return null;
 }
 
 export async function createSpace(complexId: string, data: Omit<VenueSpace, 'id'> & { id?: string }): Promise<string> {
@@ -277,19 +308,43 @@ export function subscribeToComplexSpaces(
   complexId: string,
   callback: (spaces: VenueSpace[]) => void,
 ): () => void {
-  return onSnapshot(spacesCol(complexId), snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() }) as VenueSpace));
-  });
+  try {
+    return onSnapshot(spacesCol(complexId), snap => {
+      if (!snap.empty) {
+        callback(snap.docs.map(d => ({ id: d.id, ...d.data() }) as VenueSpace));
+      } else if (complexId === 'bharat-mandap') {
+        callback(SAMPLE_SPACES);
+      } else {
+        callback([]);
+      }
+    }, (err) => {
+      console.debug('[firestore] subscribeToComplexSpaces fallback:', err);
+      if (complexId === 'bharat-mandap') callback(SAMPLE_SPACES);
+    });
+  } catch {
+    if (complexId === 'bharat-mandap') callback(SAMPLE_SPACES);
+    return () => {};
+  }
 }
 
 // ── SpaceEvent CRUD ───────────────────────────────────────────────────────────
 
 export async function getSpaceEvents(complexId: string, spaceId?: string): Promise<SpaceEvent[]> {
-  const constraints: QueryConstraint[] = [where('complexId', '==', complexId), limit(50)];
-  if (spaceId) constraints.push(where('spaceId', '==', spaceId));
-  const snaps = await getDocs(query(spaceEventsCol(), ...constraints));
-  const list  = snaps.docs.map(d => ({ id: d.id, ...d.data() }) as SpaceEvent);
-  return list.sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
+  try {
+    const constraints: QueryConstraint[] = [where('complexId', '==', complexId), limit(50)];
+    if (spaceId) constraints.push(where('spaceId', '==', spaceId));
+    const snaps = await getDocs(query(spaceEventsCol(), ...constraints));
+    if (!snaps.empty) {
+      const list  = snaps.docs.map(d => ({ id: d.id, ...d.data() }) as SpaceEvent);
+      return list.sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
+    }
+  } catch (err) {
+    console.debug('[firestore] getSpaceEvents fallback:', err);
+  }
+  if (complexId === 'bharat-mandap') {
+    return SAMPLE_SPACE_EVENTS.filter(e => e.complexId === complexId && (!spaceId || e.spaceId === spaceId));
+  }
+  return [];
 }
 
 export async function createSpaceEvent(data: Omit<SpaceEvent, 'id' | 'createdAt'>): Promise<string> {
@@ -305,10 +360,24 @@ export function subscribeToLiveSpaceEvents(
   complexId: string,
   callback: (events: SpaceEvent[]) => void,
 ): () => void {
-  const q = query(spaceEventsCol(), where('complexId', '==', complexId), where('status', '==', 'live'));
-  return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() }) as SpaceEvent));
-  });
+  try {
+    const q = query(spaceEventsCol(), where('complexId', '==', complexId), where('status', '==', 'live'));
+    return onSnapshot(q, snap => {
+      if (!snap.empty) {
+        callback(snap.docs.map(d => ({ id: d.id, ...d.data() }) as SpaceEvent));
+      } else if (complexId === 'bharat-mandap') {
+        callback(SAMPLE_SPACE_EVENTS.filter(e => e.status === 'live'));
+      } else {
+        callback([]);
+      }
+    }, (err) => {
+      console.debug('[firestore] subscribeToLiveSpaceEvents fallback:', err);
+      if (complexId === 'bharat-mandap') callback(SAMPLE_SPACE_EVENTS.filter(e => e.status === 'live'));
+    });
+  } catch {
+    if (complexId === 'bharat-mandap') callback(SAMPLE_SPACE_EVENTS.filter(e => e.status === 'live'));
+    return () => {};
+  }
 }
 
 // ── Guest Session TTL Cleanup (Privacy — v2) ──────────────────────────────────

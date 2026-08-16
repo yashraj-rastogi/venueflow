@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { listenToPath, pushToPath } from '@/lib/firebase';
 import { CrowdSnapshot, Notification, Venue, Amenity, SpaceCrowdSlice, GuestPositionTick } from '@/types';
-import { SAMPLE_CROWD_SNAPSHOT, SAMPLE_NOTIFICATIONS, SAMPLE_VENUES } from '@/lib/sampleData';
+import { SAMPLE_CROWD_SNAPSHOT, SAMPLE_NOTIFICATIONS, SAMPLE_VENUES, SAMPLE_COMPLEX_CROWD } from '@/lib/sampleData';
 import { getVenueById } from '@/lib/firestore';
 import { ensureVenueSeeded } from '@/lib/seedFirebase';
 
@@ -357,22 +357,37 @@ export function useNotifications(venueId: string) {
  * Used by the ComplexAdmin overview dashboard.
  */
 export function useComplexCrowd(complexId: string | null | undefined) {
+  const isDemo = complexId === 'bharat-mandap';
+  const initialData = isDemo ? {
+    shared    : (SAMPLE_COMPLEX_CROWD.shared as unknown as Record<string, SpaceCrowdSlice>),
+    spaces    : (SAMPLE_COMPLEX_CROWD.spaces as unknown as Record<string, SpaceCrowdSlice>),
+    totalCount: SAMPLE_COMPLEX_CROWD.totalCount,
+  } : null;
+
   const [data, setData] = useState<{
     shared    : Record<string, SpaceCrowdSlice>;
     spaces    : Record<string, SpaceCrowdSlice>;
     totalCount: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
+  } | null>(initialData);
+  const [loading, setLoading] = useState(!isDemo);
 
   useEffect(() => {
     if (!complexId) { setLoading(false); return; }
     const unsub = listenToPath(`complex_crowd/${complexId}`, (val: unknown) => {
       const raw = val as Record<string, unknown> | null;
-      setData({
-        shared    : (raw?.shared  as Record<string, SpaceCrowdSlice>) ?? {},
-        spaces    : (raw?.spaces  as Record<string, SpaceCrowdSlice>) ?? {},
-        totalCount: (raw?.totalCount as number) ?? 0,
-      });
+      if (raw && (raw.spaces || raw.shared)) {
+        setData({
+          shared    : (raw?.shared  as Record<string, SpaceCrowdSlice>) ?? {},
+          spaces    : (raw?.spaces  as Record<string, SpaceCrowdSlice>) ?? {},
+          totalCount: (raw?.totalCount as number) ?? 0,
+        });
+      } else if (complexId === 'bharat-mandap') {
+        setData({
+          shared    : (SAMPLE_COMPLEX_CROWD.shared as unknown as Record<string, SpaceCrowdSlice>),
+          spaces    : (SAMPLE_COMPLEX_CROWD.spaces as unknown as Record<string, SpaceCrowdSlice>),
+          totalCount: SAMPLE_COMPLEX_CROWD.totalCount,
+        });
+      }
       setLoading(false);
     });
     return unsub;
@@ -388,14 +403,24 @@ export function useComplexCrowd(complexId: string | null | undefined) {
  * Used by SpaceAdmin dashboard (sees ONLY their space, not neighbours).
  */
 export function useSpaceCrowd(complexId: string | null | undefined, spaceId: string | null | undefined) {
-  const [crowd, setCrowd] = useState<SpaceCrowdSlice | null>(null);
-  const [loading, setLoading] = useState(true);
+  const isDemo = complexId === 'bharat-mandap';
+  const demoSlot = isDemo && spaceId
+    ? ((SAMPLE_COMPLEX_CROWD.spaces as unknown as Record<string, SpaceCrowdSlice>)[spaceId] ?? null)
+    : null;
+
+  const [crowd, setCrowd] = useState<SpaceCrowdSlice | null>(demoSlot);
+  const [loading, setLoading] = useState(!demoSlot);
 
   useEffect(() => {
     if (!complexId || !spaceId) { setLoading(false); return; }
     const path = `complex_crowd/${complexId}/spaces/${spaceId}`;
     const unsub = listenToPath(path, (val: unknown) => {
-      setCrowd(val as SpaceCrowdSlice | null);
+      if (val) {
+        setCrowd(val as SpaceCrowdSlice);
+      } else if (complexId === 'bharat-mandap') {
+        const slot = (SAMPLE_COMPLEX_CROWD.spaces as unknown as Record<string, SpaceCrowdSlice>)[spaceId] ?? null;
+        setCrowd(slot);
+      }
       setLoading(false);
     });
     return unsub;

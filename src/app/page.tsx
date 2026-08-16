@@ -118,8 +118,11 @@ export default function HomePage() {
           <Link href="/onboarding" className="btn-primary" style={{ fontSize: '0.9375rem', padding: '0.625rem 1.5rem', gap: '0.5rem' }}>
             Start free trial <ArrowRight size={16} />
           </Link>
-          <Link href="/g/metlife-stadium" className="btn-ghost" style={{ fontSize: '0.9375rem', padding: '0.625rem 1.5rem' }}>
-            View live demo
+          <Link href="/g/metlife-stadium" className="btn-ghost" style={{ fontSize: '0.9375rem', padding: '0.625rem 1.25rem' }}>
+            🏟️ Stadium Demo
+          </Link>
+          <Link href="/complex/bharat-mandap" className="btn-ghost" style={{ fontSize: '0.9375rem', padding: '0.625rem 1.25rem', color: 'var(--brand-light)' }}>
+            🏢 Complex Demo (v2)
           </Link>
         </div>
 

@@ -285,6 +285,9 @@ export default function PerVenueAdmin() {
             <button onClick={() => setTab('qr')} className="btn-ghost" style={{ fontSize: '0.8125rem', padding: '0.5rem 0.875rem', height: 'auto', gap: 6 }}>
               📱 Guest QR Code
             </button>
+            <Link href={`/staff/${venueId}`} target="_blank" className="btn-ghost" style={{ fontSize: '0.8125rem', padding: '0.5rem 0.875rem', height: 'auto', gap: 6, textDecoration: 'none' }}>
+              🛡️ Staff Concourse View
+            </Link>
           </div>
 
           {/* KPI row */}

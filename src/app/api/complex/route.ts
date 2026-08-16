@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminFirestore, adminDb } from '@/lib/firebaseAdmin';
+import { SAMPLE_COMPLEX, SAMPLE_SPACES, SAMPLE_SPACE_EVENTS } from '@/lib/sampleData';
 
 /**
  * GET /api/complex?complexId=X
@@ -19,30 +20,45 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'complexId is required' }, { status: 400 });
     }
 
-    // Fetch complex document
-    const complexSnap = await adminFirestore.collection('venue_complexes').doc(complexId).get();
-    if (!complexSnap.exists) {
-      return NextResponse.json({ ok: false, error: 'Complex not found' }, { status: 404 });
+    try {
+      // Fetch complex document
+      const complexSnap = await adminFirestore.collection('venue_complexes').doc(complexId).get();
+      if (complexSnap.exists) {
+        const complex = { id: complexSnap.id, ...complexSnap.data() };
+
+        // Fetch all spaces
+        const spacesSnap = await adminFirestore
+          .collection('venue_complexes')
+          .doc(complexId)
+          .collection('spaces')
+          .get();
+        const spaces = spacesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Fetch live space events
+        const eventsSnap = await adminFirestore
+          .collection('space_events')
+          .where('complexId', '==', complexId)
+          .where('status', '==', 'live')
+          .get();
+        const liveEvents = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        return NextResponse.json({ ok: true, complex, spaces, liveEvents });
+      }
+    } catch (dbErr) {
+      console.warn('[Complex GET] Firestore query failed, checking demo fallback:', dbErr);
     }
-    const complex = { id: complexSnap.id, ...complexSnap.data() };
 
-    // Fetch all spaces
-    const spacesSnap = await adminFirestore
-      .collection('venue_complexes')
-      .doc(complexId)
-      .collection('spaces')
-      .get();
-    const spaces = spacesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Demo Fallback for bharat-mandap
+    if (complexId === 'bharat-mandap' || complexId === SAMPLE_COMPLEX.id) {
+      return NextResponse.json({
+        ok: true,
+        complex: SAMPLE_COMPLEX,
+        spaces: SAMPLE_SPACES,
+        liveEvents: SAMPLE_SPACE_EVENTS.filter(e => e.status === 'live'),
+      });
+    }
 
-    // Fetch live space events
-    const eventsSnap = await adminFirestore
-      .collection('space_events')
-      .where('complexId', '==', complexId)
-      .where('status', '==', 'live')
-      .get();
-    const liveEvents = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    return NextResponse.json({ ok: true, complex, spaces, liveEvents });
+    return NextResponse.json({ ok: false, error: 'Complex not found' }, { status: 404 });
   } catch (err) {
     console.error('[Complex GET]', err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });

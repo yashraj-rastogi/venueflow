@@ -12,7 +12,7 @@ import {
   Globe, Loader2, MapPin, QrCode, Search, Sparkles, Users,
 } from 'lucide-react';
 import { listenToPath } from '@/lib/firebase';
-import { SAMPLE_VENUES } from '@/lib/sampleData';
+import { SAMPLE_VENUES, SAMPLE_COMPLEX, SAMPLE_SPACES, SAMPLE_SPACE_EVENTS } from '@/lib/sampleData';
 import { Venue } from '@/types';
 
 export default function GuestVenueSelectorPage() {
@@ -79,32 +79,43 @@ export default function GuestVenueSelectorPage() {
     e.preventDefault();
     if (!qrInput.trim()) return;
 
-    let targetVenueId = qrInput.trim();
+    let target = qrInput.trim();
 
-    // Handle full QR URLs like http://localhost:3000/checkin/metlife-stadium?z=zone-a
-    if (targetVenueId.includes('/checkin/')) {
-      const parts = targetVenueId.split('/checkin/');
+    // Handle full QR URLs like http://localhost:3000/checkin/bharat-mandap/space/hall-a-floor1?event=evt-ai-track
+    if (target.includes('/checkin/')) {
+      const parts = target.split('/checkin/');
       if (parts[1]) {
         router.push(`/checkin/${parts[1]}`);
         return;
       }
-    } else if (targetVenueId.includes('/g/')) {
-      const parts = targetVenueId.split('/g/');
+    } else if (target.includes('/g/')) {
+      const parts = target.split('/g/');
       if (parts[1]) {
-        router.push(`/checkin/${parts[1]}`);
+        router.push(`/g/${parts[1]}`);
+        return;
+      }
+    } else if (target.includes('/location-update')) {
+      const parts = target.split('/location-update');
+      if (parts[1]) {
+        router.push(`/location-update${parts[1]}`);
         return;
       }
     }
 
     // Clean slug
-    targetVenueId = targetVenueId.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-    router.push(`/checkin/${targetVenueId}`);
+    target = target.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+    router.push(`/checkin/${target}`);
   };
 
   const filteredVenues = venues.filter(v =>
     v.name.toLowerCase().includes(search.toLowerCase()) ||
     v.city.toLowerCase().includes(search.toLowerCase())
   );
+
+  const complexMatchesSearch =
+    SAMPLE_COMPLEX.name.toLowerCase().includes(search.toLowerCase()) ||
+    SAMPLE_COMPLEX.city.toLowerCase().includes(search.toLowerCase()) ||
+    SAMPLE_SPACES.some(s => s.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--bg)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>
@@ -125,11 +136,11 @@ export default function GuestVenueSelectorPage() {
       </header>
 
       {/* Main Body */}
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '2rem 1.5rem' }}>
+      <main style={{ maxWidth: 760, margin: '0 auto', padding: '2rem 1.5rem' }}>
         {/* Title */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-1)', marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>
-            Enter Your Stadium or Event
+            Enter Your Stadium, Arena, or Event Complex
           </h1>
           <p style={{ fontSize: '0.9375rem', color: 'var(--text-3)' }}>
             Select your venue below or scan your entrance QR code to launch live crowd map and tutorial.
@@ -157,7 +168,7 @@ export default function GuestVenueSelectorPage() {
               transition: 'all 0.15s ease',
             }}
           >
-            <Compass size={16} /> Choose Venue ({venues.length})
+            <Compass size={16} /> Choose Venue & Complex
           </button>
 
           <button
@@ -187,84 +198,176 @@ export default function GuestVenueSelectorPage() {
         {activeTab === 'select' && (
           <div>
             {/* Search Input */}
-            <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
+            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
               <Search size={16} color="var(--text-3)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search venue by name or city..."
+                placeholder="Search venue by name, city, hall, or event..."
                 className="input-dark"
                 style={{ width: '100%', paddingLeft: 40 }}
               />
             </div>
 
-            {loading ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-3)' }}>
-                <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 0.5rem' }} />
-                <p style={{ fontSize: '0.875rem' }}>Loading active venues…</p>
-              </div>
-            ) : filteredVenues.length === 0 ? (
-              <div style={{ background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: 14, padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--text-3)' }}>
-                <MapPin size={28} style={{ margin: '0 auto 0.5rem' }} />
-                <p>No venues found matching "{search}".</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                {filteredVenues.map(v => (
-                  <div
-                    key={v.id}
-                    onClick={() => router.push(`/checkin/${v.id}`)}
-                    style={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 14,
-                      padding: '1.125rem 1.25rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'var(--brand-light)';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <div style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 12,
-                        background: 'color-mix(in srgb, var(--brand) 15%, transparent)',
-                        border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}>
-                        <MapPin size={20} color="var(--brand-light)" />
-                      </div>
+            {/* 1. Multi-Event Convention Complex Section */}
+            {complexMatchesSearch && (
+              <div style={{ marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
+                  <span className="live-badge"><span className="live-dot" />MULTI-EVENT COMPLEX (v2)</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-4)' }}>Concurrent event spaces</span>
+                </div>
 
-                      <div>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: 2 }}>{v.name}</h3>
-                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span>📍 {v.city}</span>
-                          <span>👥 {v.capacity ? v.capacity.toLocaleString() : '50,000'} capacity</span>
-                        </p>
-                      </div>
+                <div style={{ background: 'var(--surface)', border: '1px solid color-mix(in srgb, var(--brand) 35%, var(--border))', borderRadius: 16, padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div>
+                      <h2 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--text-1)' }}>{SAMPLE_COMPLEX.name}</h2>
+                      <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <MapPin size={13} /> {SAMPLE_COMPLEX.city} · {SAMPLE_COMPLEX.totalCapacity.toLocaleString()} total capacity · {SAMPLE_COMPLEX.floors} floors
+                      </p>
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--brand-light)', fontWeight: 600, fontSize: '0.875rem' }}>
-                      Check-in <ArrowRight size={15} />
-                    </div>
+                    <Link
+                      href={`/complex/${SAMPLE_COMPLEX.id}`}
+                      className="btn-ghost"
+                      style={{ fontSize: '0.75rem', padding: '0.3rem 0.625rem', borderRadius: 8, color: 'var(--brand-light)' }}
+                    >
+                      🏢 Facility Admin
+                    </Link>
                   </div>
-                ))}
+
+                  {/* Spaces / Halls List */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                    {SAMPLE_SPACES.filter(s => !s.isShared).map(space => {
+                      const evt = SAMPLE_SPACE_EVENTS.find(e => e.spaceId === space.id);
+                      return (
+                        <div
+                          key={space.id}
+                          onClick={() => router.push(`/checkin/${SAMPLE_COMPLEX.id}/space/${space.id}${evt ? `?event=${evt.id}` : ''}`)}
+                          style={{
+                            background: 'var(--surface-2)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 12,
+                            padding: '0.875rem 1rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor = 'var(--brand-light)';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = 'var(--border)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-4)', textTransform: 'uppercase' }}>
+                                {space.floor === 0 ? 'Ground Floor' : `Floor ${space.floor}`}
+                              </span>
+                              <span className="chip chip-green" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+                                {space.capacity} cap
+                              </span>
+                            </div>
+                            <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: '0.25rem' }}>{space.name}</h3>
+                            {evt && (
+                              <p style={{ fontSize: '0.75rem', color: 'var(--brand-light)', fontWeight: 500, lineHeight: 1.3, marginBottom: '0.5rem' }}>
+                                🎤 {evt.name}
+                              </p>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>Gate Check-in</span>
+                            <span style={{ color: 'var(--brand-light)', display: 'flex', alignItems: 'center', gap: 3, fontSize: '0.75rem', fontWeight: 600 }}>
+                              Enter <ArrowRight size={13} />
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
+
+            {/* 2. Stadium & Single Venue Section */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem' }}>
+                <span className="live-badge"><span className="live-dot" />STADIUMS & ARENAS</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-4)' }}>Single-event venues</span>
+              </div>
+
+              {loading ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-3)' }}>
+                  <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 0.5rem' }} />
+                  <p style={{ fontSize: '0.875rem' }}>Loading active venues…</p>
+                </div>
+              ) : filteredVenues.length === 0 && !complexMatchesSearch ? (
+                <div style={{ background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: 14, padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--text-3)' }}>
+                  <MapPin size={28} style={{ margin: '0 auto 0.5rem' }} />
+                  <p>No venues found matching "{search}".</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  {filteredVenues.map(v => (
+                    <div
+                      key={v.id}
+                      onClick={() => router.push(`/checkin/${v.id}`)}
+                      style={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 14,
+                        padding: '1.125rem 1.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = 'var(--brand-light)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 12,
+                          background: 'color-mix(in srgb, var(--brand) 15%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <MapPin size={20} color="var(--brand-light)" />
+                        </div>
+
+                        <div>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: 2 }}>{v.name}</h3>
+                          <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span>📍 {v.city}</span>
+                            <span>👥 {v.capacity ? v.capacity.toLocaleString() : '50,000'} capacity</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--brand-light)', fontWeight: 600, fontSize: '0.875rem' }}>
+                        Check-in <ArrowRight size={15} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

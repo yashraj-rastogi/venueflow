@@ -6,8 +6,9 @@ import { analyzeQuery } from '@/lib/gemini';
 interface Message { role: 'user' | 'ai'; text: string; ts: number; }
 
 interface AIChatProps {
-  venueName : string;
-  avgDensity: number;
+  venueName   : string;
+  avgDensity  : number;
+  initialOpen?: boolean;
 }
 
 const SUPPORTED_LANGUAGES: Record<string, string> = {
@@ -28,8 +29,8 @@ const SUGGESTIONS_BY_LANG: Record<string, string[]> = {
   ar: ['أين أقل وقت انتظار؟', 'أي منطقة أقل ازدحامًا؟', 'متى أفضل وقت للأكل؟'],
 };
 
-export default function AIChat({ venueName, avgDensity }: AIChatProps) {
-  const [open,       setOpen]       = useState(false);
+export default function AIChat({ venueName, avgDensity, initialOpen = true }: AIChatProps) {
+  const [open,       setOpen]       = useState(initialOpen);
   const [messages,   setMessages]   = useState<Message[]>([]);
   const [input,      setInput]      = useState('');
   const [loading,    setLoading]    = useState(false);
